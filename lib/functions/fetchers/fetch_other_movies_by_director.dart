@@ -1,0 +1,69 @@
+import 'dart:isolate';
+import 'package:flutter/foundation.dart' show kIsWeb;
+
+import 'package:Mirarr/functions/get_base_url.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:Mirarr/services/api_client.dart';
+import 'dart:convert';
+
+final apiKey = dotenv.env['TMDB_API_KEY'];
+
+List<dynamic> _parseMoviesInIsolate(String responseBody) {
+  final decoded = json.decode(responseBody);
+  final List<dynamic> movies = decoded['crew'];
+
+  Set<int> movieIds = {};
+
+  List<dynamic> filteredMovies = [];
+
+  for (var movie in movies) {
+    // Check if the crew member's job is "Director"
+    if (movie['job'] == 'Director') {
+      // Add the movie only if it has a poster path and not already added
+      if (movie['poster_path'] != null &&
+          movie['poster_path'] != '' &&
+          !movieIds.contains(movie['id'])) {
+        filteredMovies.add(movie);
+        movieIds.add(movie['id']);
+      }
+    }
+  }
+  return filteredMovies;
+}
+
+void _isolateFunction(Map<String, dynamic> message) {
+  final SendPort sendPort = message['sendPort'];
+  final String responseBody = message['responseBody'];
+  final filteredMovies = _parseMoviesInIsolate(responseBody);
+  sendPort.send(filteredMovies);
+}
+
+Future<List<dynamic>> fetchOtherMoviesByDirector(
+    int castId, String region) async {
+  final baseUrl = getBaseUrl(region);
+  final response = await apiClient.get(
+    Uri.parse('${baseUrl}person/$castId/movie_credits?api_key=$apiKey'),
+  );
+  if (response.statusCode == 200) {
+    if (kIsWeb) {
+      return _parseMoviesInIsolate(response.body);
+    }
+    final receivePort = ReceivePort();
+
+    try {
+      await Isolate.spawn(
+        _isolateFunction,
+        {
+          'sendPort': receivePort.sendPort,
+          'responseBody': response.body,
+        },
+      );
+      final filteredMovies = await receivePort.first as List<dynamic>;
+      return filteredMovies;
+    } finally {
+      receivePort.close();
+    }
+  } else {
+    throw Exception('Failed to load other movies');
+  }
+}

@@ -1,0 +1,69 @@
+name: Mirarr
+description: An open source movie app.
+publish_to: "none" # Remove this line if you wish to publish to pub.dev
+
+version: 3.3.2
+
+environment:
+  sdk: ">=3.10.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  http: ^1.2.2
+  flutter_dotenv: 5.1.0
+  cached_network_image: 3.4.1
+  intl: ^0.18.1
+  url_launcher: ^6.2.5
+  tmdb_api: ^2.2.0
+  hive: ^2.2.3
+  hive_flutter: ^1.1.0
+  webfeed_plus: ^1.0.0+1
+  window_manager: ^0.3.8
+  package_info_plus: 8.2.1
+  cupertino_icons: ^1.0.2
+  provider: ^6.1.2
+  shared_preferences: ^2.0.15
+  app_links: ^3.5.0
+  share_plus: ^10.1.4
+  screenshot: ^3.0.0
+  path_provider: ^2.0.15
+  sqlite3: ^2.7.6
+  sqlite3_flutter_libs: ^0.5.0
+  path: ^1.8.3
+  supabase_flutter: ^2.9.0
+  file_picker: ^11.0.2
+  device_info_plus: ^10.1.2
+  skeletonizer: ^2.1.3
+  gap: ^3.0.1
+  dynamic_color: ^1.8.1
+  html: ^0.15.4
+  media_kit: ^1.1.11
+  media_kit_video: ^1.2.5
+  media_kit_libs_video: ^1.0.4
+  wakelock_plus: ^1.2.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  flutter_lints: ^2.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - .env
+    - assets/images/person.png
+    - assets/images/duckie.png
+    # Secondary fonts: loaded at runtime on native via FontLoader.
+    # Kept out of the `fonts:` section so Flutter web does not preload them.
+    - assets/fonts/Poppins-Medium.ttf
+    - assets/fonts/RobotoMono-VariableFont_wght.ttf
+    - assets/fonts/nothing.ttf
+  fonts:
+    # Only PlusJakartaSans is registered as a manifest font so web startup
+    # downloads this one font (plus MaterialIcons) instead of every face.
+    - family: PlusJakartaSans
+      fonts:
+        - asset: assets/fonts/PlusJakartaSans-VariableFont_wght.ttf

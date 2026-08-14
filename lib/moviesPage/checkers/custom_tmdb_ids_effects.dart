@@ -1,0 +1,217 @@
+import 'package:flutter/material.dart';
+import 'package:Mirarr/moviesPage/checkers/const_tmdb_ids.dart';
+
+bool isHarryPotter(int tmdbId) => harryPotterIds.contains(tmdbId);
+bool isMatrix(int tmdbId) => matrixIds.contains(tmdbId);
+bool isStarwars(int tmdbId) => starwarsIds.contains(tmdbId);
+bool isSpiderman(int tmdbId) => spidermanIds.contains(tmdbId);
+bool isAvengers(int tmdbId) => avengersIds.contains(tmdbId);
+bool isBatman(int tmdbId) => batmanIds.contains(tmdbId);
+bool isShrek(int tmdbId) => shrekIds.contains(tmdbId);
+bool isDeadpool(int tmdbId) => deadpoolIds.contains(tmdbId);
+bool isDune(int tmdbId) => duneIds.contains(tmdbId);
+bool isMonsters(int tmdbId) => monstersIds.contains(tmdbId);
+bool isLotr(int tmdbId) => lotrIds.contains(tmdbId);
+bool isHobbit(int tmdbId) => hobbitIds.contains(tmdbId);
+
+TextStyle getMovieTitleTextStyle(int tmdbId) => switch (tmdbId) {
+      _ when isHarryPotter(tmdbId) => const TextStyle(
+          fontSize: 28,
+          fontWeight: FontWeight.bold,
+          color: Color(0xFFC39A1C),
+          
+        ),
+      _ when isMatrix(tmdbId) => const TextStyle(
+          fontSize: 22,
+          fontWeight: FontWeight.bold,
+          color: Color(0xFF008F11),
+        ),
+      _ when isStarwars(tmdbId) => const TextStyle(
+          fontSize: 22,
+          fontWeight: FontWeight.bold,
+          color: Color(0xFFffe81f),
+        ),
+      _ when isSpiderman(tmdbId) => const TextStyle(
+          fontSize: 22,
+          fontWeight: FontWeight.bold,
+          color: Color(0xFFea1818),
+        ),
+      _ when isAvengers(tmdbId) => const TextStyle(
+          fontSize: 27,
+          fontWeight: FontWeight.bold,
+          color: Color(0xFF460061),
+        ),
+      _ when isBatman(tmdbId) => const TextStyle(
+          fontSize: 27,
+          fontWeight: FontWeight.bold,
+          color: Color(0xFFe6f10c),
+        ),
+      _ when isShrek(tmdbId) => const TextStyle(
+          fontSize: 27,
+          fontWeight: FontWeight.bold,
+          color: Color(0xFFb0c400),
+        ),
+      _ when isDeadpool(tmdbId) => const TextStyle(
+          fontSize: 27,
+          fontWeight: FontWeight.bold,
+          color: Color(0xFF8f2121),
+        ),
+      _ when isDune(tmdbId) => const TextStyle(
+          fontSize: 27,
+          fontWeight: FontWeight.bold,
+          color: Color(0xFFe79b07),
+        ),
+      _ when isMonsters(tmdbId) => const TextStyle(
+          fontSize: 27,
+          fontWeight: FontWeight.bold,
+          color: Color(0xFF50ceff),
+        ),
+      _ when isLotr(tmdbId) => const TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.bold,
+          color: Color(0xFFe3b737),
+        ),
+      _ when isHobbit(tmdbId) => const TextStyle(
+          fontSize: 20,
+          fontWeight: FontWeight.bold,
+          color: Color(0xFFfec908),
+        ),
+      _ => const TextStyle(
+          fontSize: 20,
+          fontWeight: FontWeight.bold,
+          color: Colors.white,
+        ),
+    };
+
+Color getMovieBackgroundColor(BuildContext context, int tmdbId) =>
+    switch (tmdbId) {
+      _ when isHarryPotter(tmdbId) => const Color(0xFF641E1E).withValues(alpha: 0.8),
+      _ when isMatrix(tmdbId) => const Color(0xFF0e1b0f).withValues(alpha: 0.8),
+      _ when isStarwars(tmdbId) => const Color(0xFF201652).withValues(alpha: 0.8),
+      _ when isSpiderman(tmdbId) => const Color(0xFFea1818).withValues(alpha: 0.6),
+      _ when isAvengers(tmdbId) => const Color(0xFF460061).withValues(alpha: 0.8),
+      _ when isBatman(tmdbId) => const Color(0xFF03084e).withValues(alpha: 0.8),
+      _ when isShrek(tmdbId) => const Color(0xFFb0c400).withValues(alpha: 0.8),
+      _ when isDeadpool(tmdbId) => const Color(0xFF8f2121).withValues(alpha: 0.8),
+      _ when isDune(tmdbId) => const Color(0xFF3d2d1c).withValues(alpha: 0.8),
+      _ when isMonsters(tmdbId) => const Color(0xFF5aff49).withValues(alpha: 0.8),
+      _ when isLotr(tmdbId) => const Color(0xFFb87316).withValues(alpha: 0.8),
+      _ when isHobbit(tmdbId) => const Color(0xFF201d05).withValues(alpha: 0.8),
+      _ => Colors.grey.withValues(alpha: 0.2),
+    };
+
+TextStyle getMovieAboutTextStyle(BuildContext context, int tmdbId) =>
+    switch (tmdbId) {
+      _ when isHarryPotter(tmdbId) => const TextStyle(
+          fontWeight: FontWeight.w300,
+          color: Color(0xFFEFEEE9),
+        ),
+      _ when isMatrix(tmdbId) => const TextStyle(
+          fontWeight: FontWeight.w300,
+          color: Colors.white,
+          fontSize: 15,
+        ),
+      _ when isStarwars(tmdbId) => const TextStyle(
+          fontWeight: FontWeight.w300,
+          color: Colors.white,
+          fontSize: 15,
+        ),
+      _ when isAvengers(tmdbId) => const TextStyle(
+          fontWeight: FontWeight.w300,
+          color: Colors.white,
+          fontSize: 15,
+        ),
+      _ when isLotr(tmdbId) => const TextStyle(
+          fontWeight: FontWeight.w300,
+          color: Colors.white,
+          fontSize: 15,
+        ),
+      _ => const TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.w300,
+        ),
+    };
+
+Color getMovieColor(BuildContext context, int tmdbId) => switch (tmdbId) {
+      _ when isHarryPotter(tmdbId) => const Color(0xFF641E1E),
+      _ when isMatrix(tmdbId) => const Color(0xFF0e1b0f),
+      _ when isStarwars(tmdbId) => const Color(0xFF201652),
+      _ when isSpiderman(tmdbId) => const Color(0xFFea1818),
+      _ when isAvengers(tmdbId) => const Color(0xFF460061),
+      _ when isBatman(tmdbId) => const Color(0xFFe6f10c),
+      _ when isShrek(tmdbId) => const Color(0xFFb0c400),
+      _ when isDeadpool(tmdbId) => const Color(0xFF8f2121),
+      _ when isDune(tmdbId) => const Color(0xFFe79b07),
+      _ when isMonsters(tmdbId) => const Color(0xFF5aff49),
+      _ when isLotr(tmdbId) => const Color(0xFFb87316),
+      _ when isHobbit(tmdbId) => const Color(0xFF201d05),
+      _ => Theme.of(context).colorScheme.primary,
+    };
+
+TextStyle getMovieButtonTextStyle(int tmdbId) => switch (tmdbId) {
+      _ when isHarryPotter(tmdbId) => const TextStyle(
+          fontSize: 24,
+          fontWeight: FontWeight.bold,
+          color: Color(0xFFC39A1C),
+        ),
+      _ when isMatrix(tmdbId) => const TextStyle(
+          fontSize: 22,
+          fontWeight: FontWeight.bold,
+          color: Color(0xFF008F11),
+        ),
+      _ when isStarwars(tmdbId) => const TextStyle(
+          fontSize: 22,
+          fontWeight: FontWeight.bold,
+          color: Color(0xFFffe81f),
+        ),
+      _ when isSpiderman(tmdbId) => const TextStyle(
+          fontSize: 22,
+          fontWeight: FontWeight.bold,
+          color: Colors.black,
+        ),
+      _ when isAvengers(tmdbId) => const TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.bold,
+          color: Color(0xFF00991f),
+        ),
+      _ when isBatman(tmdbId) => const TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.bold,
+          color: Color(0xFF03084e),
+        ),
+      _ when isShrek(tmdbId) => const TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.bold,
+          color: Color(0xFF795a2d),
+        ),
+      _ when isDeadpool(tmdbId) => const TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.bold,
+          color: Color(0xFF171717),
+        ),
+      _ when isDune(tmdbId) => const TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.bold,
+          color: Color(0xFF3d2d1c),
+        ),
+      _ when isMonsters(tmdbId) => const TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.bold,
+          color: Color(0xFF50ceff),
+        ),
+      _ when isLotr(tmdbId) => const TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.bold,
+          color: Color(0xFFe3b737),
+        ),
+      _ when isHobbit(tmdbId) => const TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.bold,
+          color: Color(0xFFfec908),
+        ),
+      _ => const TextStyle(
+          fontSize: 20,
+          fontWeight: FontWeight.bold,
+          color: Colors.white,
+        ),
+    };
