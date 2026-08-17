@@ -21,6 +21,7 @@ import 'package:Mirarr/seriesPage/models/serie.dart';
 import 'package:Mirarr/moviesPage/UI/customMovieWidget.dart';
 import 'package:Mirarr/seriesPage/UI/customSeriesWidget.dart';
 import 'package:Mirarr/homePage/widgets/set_watch_status_modal.dart';
+import 'package:Mirarr/homePage/widgets/provider_media_detail_page.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:Mirarr/functions/get_base_url.dart';
 import 'package:Mirarr/functions/regionprovider_class.dart';
@@ -36,6 +37,8 @@ class ShelfItem {
   final String status;
   final DateTime date;
   final double score;
+  final String? permalink;
+  final String? providerName;
 
   ShelfItem({
     required this.tmdbId,
@@ -45,6 +48,8 @@ class ShelfItem {
     required this.status,
     required this.date,
     this.score = 0.0,
+    this.permalink,
+    this.providerName,
   });
 }
 
@@ -74,8 +79,45 @@ class _ShelfPageState extends State<ShelfPage> {
     'Dropped',
     'Plan to Watch',
     'Favorites',
-    'Subscribed',
   ];
+
+  static IconData _getStatusIcon(String status) {
+    switch (status) {
+      case 'Watching':
+        return Icons.play_circle_filled_rounded;
+      case 'Completed':
+        return Icons.check_circle_rounded;
+      case 'On-Hold':
+        return Icons.pause_circle_filled_rounded;
+      case 'Dropped':
+        return Icons.cancel_rounded;
+      case 'Plan to Watch':
+        return Icons.bookmark_rounded;
+      case 'Favorites':
+        return Icons.favorite_rounded;
+      default:
+        return Icons.bookmark_border_rounded;
+    }
+  }
+
+  static Color _getStatusColor(String status) {
+    switch (status) {
+      case 'Watching':
+        return const Color(0xFF4CAF50);
+      case 'Completed':
+        return const Color(0xFF2196F3);
+      case 'On-Hold':
+        return const Color(0xFFFFB300);
+      case 'Dropped':
+        return const Color(0xFFE53935);
+      case 'Plan to Watch':
+        return const Color(0xFFAB47BC);
+      case 'Favorites':
+        return const Color(0xFFE91E63);
+      default:
+        return Colors.white70;
+    }
+  }
 
   @override
   void initState() {
@@ -85,14 +127,22 @@ class _ShelfPageState extends State<ShelfPage> {
         _searchQuery = _searchController.text.trim().toLowerCase();
       });
     });
+    WatchStatusManager.watchStatusNotifier.addListener(_onGlobalWatchStatusChanged);
     _loadShelfItems();
   }
 
   @override
   void dispose() {
+    WatchStatusManager.watchStatusNotifier.removeListener(_onGlobalWatchStatusChanged);
     _searchController.dispose();
     _categoryScrollController.dispose();
     super.dispose();
+  }
+
+  void _onGlobalWatchStatusChanged() {
+    if (mounted) {
+      _loadShelfItems();
+    }
   }
 
   Future<void> _loadShelfItems() async {
@@ -119,7 +169,40 @@ class _ShelfPageState extends State<ShelfPage> {
         );
       }
 
-      // 2. Load from Hive sessionBox status keys
+      // 2. Load from Hive provider_media_meta keys (persisted provider items with links)
+      for (final key in box.keys) {
+        if (key is String && key.startsWith('provider_media_meta_')) {
+          final raw = box.get(key);
+          if (raw is Map) {
+            final id = raw['id'] as int? ?? 0;
+            final title = raw['title']?.toString() ?? '';
+            final poster = raw['posterPath']?.toString();
+            final permalink = raw['permalink']?.toString();
+            final providerName = raw['providerName']?.toString() ?? 'VegaMovies';
+            final status = raw['status']?.toString() ?? 'Watching';
+            final type = raw['type']?.toString() ?? 'movie';
+            final dateStr = raw['date']?.toString();
+            final date = dateStr != null
+                ? DateTime.tryParse(dateStr) ?? DateTime.now()
+                : DateTime.now();
+
+            if (id != 0 && title.isNotEmpty && status != 'None') {
+              itemMap[id] = ShelfItem(
+                tmdbId: id,
+                title: title,
+                posterPath: poster,
+                type: type,
+                status: status,
+                date: date,
+                permalink: permalink,
+                providerName: providerName,
+              );
+            }
+          }
+        }
+      }
+
+      // 3. Load from Hive sessionBox status keys
       for (final key in box.keys) {
         if (key is String && key.startsWith('watch_status_')) {
           final idStr = key.replaceFirst('watch_status_', '');
@@ -135,38 +218,12 @@ class _ShelfPageState extends State<ShelfPage> {
                 type: existing.type,
                 status: statusVal,
                 date: existing.date,
+                permalink: existing.permalink,
+                providerName: existing.providerName,
               );
             }
           }
         }
-      }
-
-      // Fallback demo items with valid posters if completely empty
-      if (itemMap.isEmpty) {
-        itemMap[1] = ShelfItem(
-          tmdbId: 1064486,
-          title: 'In the Grey',
-          posterPath: '/4lh6Z965q5T6dY28vL0Ff3mJzL4.jpg',
-          type: 'movie',
-          status: 'Watching',
-          date: DateTime.now(),
-        );
-        itemMap[2] = ShelfItem(
-          tmdbId: 108978,
-          title: 'Reacher',
-          posterPath: '/j73ytuz4tP9vdWWG4y55bK6aBw7.jpg',
-          type: 'tv',
-          status: 'Watching',
-          date: DateTime.now().subtract(const Duration(days: 1)),
-        );
-        itemMap[3] = ShelfItem(
-          tmdbId: 139169,
-          title: 'User Not Found',
-          posterPath: '/4y0f8sHqUuQxH35cZ8X4gP2R5l.jpg',
-          type: 'tv',
-          status: 'Watching',
-          date: DateTime.now().subtract(const Duration(days: 2)),
-        );
       }
 
       if (mounted) {
@@ -183,7 +240,44 @@ class _ShelfPageState extends State<ShelfPage> {
   }
 
   void _navigateToDetail(ShelfItem item) {
-    if (item.type == 'movie') {
+    if (item.permalink != null && item.permalink!.isNotEmpty) {
+      Navigator.push(
+        context,
+        ExpressivePageRoute(
+          page: ProviderMediaDetailPage(
+            title: item.title,
+            posterPath: item.posterPath ?? '',
+            permalink: item.permalink!,
+            providerName: item.providerName ?? 'VegaMovies',
+          ),
+        ),
+      ).then((_) => _loadShelfItems());
+    } else if (item.providerName != null && item.providerName!.isNotEmpty && item.providerName != 'TMDB') {
+      Navigator.push(
+        context,
+        ExpressivePageRoute(
+          page: ProviderMediaDetailPage(
+            title: item.title,
+            posterPath: item.posterPath ?? '',
+            permalink: item.permalink ?? '',
+            providerName: item.providerName ?? 'VegaMovies',
+          ),
+        ),
+      ).then((_) => _loadShelfItems());
+    } else if (item.tmdbId > 10000000) {
+      // Provider hash ID fallback
+      Navigator.push(
+        context,
+        ExpressivePageRoute(
+          page: ProviderMediaDetailPage(
+            title: item.title,
+            posterPath: item.posterPath ?? '',
+            permalink: item.permalink ?? '',
+            providerName: item.providerName ?? 'VegaMovies',
+          ),
+        ),
+      ).then((_) => _loadShelfItems());
+    } else if (item.type == 'movie') {
       Navigator.push(
         context,
         ExpressivePageRoute(
@@ -516,21 +610,38 @@ class _ShelfPageState extends State<ShelfPage> {
                           child: AnimatedContainer(
                             duration: const Duration(milliseconds: 200),
                             padding: EdgeInsets.symmetric(
-                              horizontal: isSelected ? 16 : 10,
+                              horizontal: isSelected ? 16 : 12,
                               vertical: 6,
                             ),
                             decoration: BoxDecoration(
-                              color: isSelected ? Colors.white : Colors.transparent,
+                              color: isSelected ? Colors.white : const Color(0xFF1E1E24),
                               borderRadius: BorderRadius.circular(18),
+                              border: Border.all(
+                                color: isSelected
+                                    ? Colors.transparent
+                                    : Colors.white.withValues(alpha: 0.08),
+                                width: 1,
+                              ),
                             ),
                             alignment: Alignment.center,
-                            child: Text(
-                              cat,
-                              style: TextStyle(
-                                color: isSelected ? Colors.black : Colors.white70,
-                                fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500,
-                                fontSize: 13,
-                              ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  _getStatusIcon(cat),
+                                  size: 15,
+                                  color: isSelected ? Colors.black : _getStatusColor(cat),
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  cat,
+                                  style: TextStyle(
+                                    color: isSelected ? Colors.black : Colors.white70,
+                                    fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ),
@@ -651,12 +762,16 @@ class _ShelfPageState extends State<ShelfPage> {
                 id: item.tmdbId,
                 score: item.score,
               );
-              return TvFocusWrapper(
-                borderRadius: 16.0,
+              return GestureDetector(
+                behavior: HitTestBehavior.opaque,
                 onTap: () => _navigateToDetail(item),
-                child: CustomMovieWidget(
-                  movie: movie,
-                  showAvailability: false,
+                child: TvFocusWrapper(
+                  borderRadius: 16.0,
+                  onTap: () => _navigateToDetail(item),
+                  child: CustomMovieWidget(
+                    movie: movie,
+                    showAvailability: false,
+                  ),
                 ),
               );
             } else {
@@ -667,11 +782,15 @@ class _ShelfPageState extends State<ShelfPage> {
                 id: item.tmdbId,
                 score: item.score,
               );
-              return TvFocusWrapper(
-                borderRadius: 16.0,
+              return GestureDetector(
+                behavior: HitTestBehavior.opaque,
                 onTap: () => _navigateToDetail(item),
-                child: CustomSeriesWidget(
-                  serie: serie,
+                child: TvFocusWrapper(
+                  borderRadius: 16.0,
+                  onTap: () => _navigateToDetail(item),
+                  child: CustomSeriesWidget(
+                    serie: serie,
+                  ),
                 ),
               );
             }
@@ -712,12 +831,16 @@ class _ShelfPageState extends State<ShelfPage> {
                 id: item.tmdbId,
                 score: item.score,
               );
-              return TvFocusWrapper(
-                borderRadius: 12.0,
+              return GestureDetector(
+                behavior: HitTestBehavior.opaque,
                 onTap: () => _navigateToDetail(item),
-                child: CustomMovieWidget(
-                  movie: movie,
-                  showAvailability: false,
+                child: TvFocusWrapper(
+                  borderRadius: 12.0,
+                  onTap: () => _navigateToDetail(item),
+                  child: CustomMovieWidget(
+                    movie: movie,
+                    showAvailability: false,
+                  ),
                 ),
               );
             } else {
@@ -728,11 +851,15 @@ class _ShelfPageState extends State<ShelfPage> {
                 id: item.tmdbId,
                 score: item.score,
               );
-              return TvFocusWrapper(
-                borderRadius: 12.0,
+              return GestureDetector(
+                behavior: HitTestBehavior.opaque,
                 onTap: () => _navigateToDetail(item),
-                child: CustomSeriesWidget(
-                  serie: serie,
+                child: TvFocusWrapper(
+                  borderRadius: 12.0,
+                  onTap: () => _navigateToDetail(item),
+                  child: CustomSeriesWidget(
+                    serie: serie,
+                  ),
                 ),
               );
             }

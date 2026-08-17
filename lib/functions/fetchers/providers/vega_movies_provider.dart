@@ -2,6 +2,114 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:html/parser.dart' as parser;
 import 'package:html/dom.dart';
+import 'package:flutter/foundation.dart';
+import 'package:Mirarr/moviesPage/models/movie.dart';
+import 'package:Mirarr/functions/fetchers/providers/media_provider_service.dart';
+import 'provider_config.dart';
+
+/// Model for VegaMediaItem on Home shelves
+class VegaMediaItem {
+  final String title;
+  final String posterPath;
+  final String permalink;
+  final String? episodeBadge;
+  final double score;
+  final int id;
+
+  const VegaMediaItem({
+    required this.title,
+    required this.posterPath,
+    required this.permalink,
+    this.episodeBadge,
+    this.score = 7.5,
+    required this.id,
+  });
+
+  Movie toMovie() {
+    return Movie(
+      title: title,
+      releaseDate: '',
+      posterPath: posterPath,
+      backdropPath: posterPath,
+      overView: episodeBadge ?? '',
+      id: id,
+      score: score,
+    );
+  }
+}
+
+class VegaShelfSection {
+  final String title;
+  final String categoryPath;
+  final List<VegaMediaItem> items;
+
+  const VegaShelfSection({
+    required this.title,
+    required this.categoryPath,
+    required this.items,
+  });
+}
+
+class VegaHomePageData {
+  final List<VegaMediaItem> hero;
+  final List<VegaShelfSection> shelves;
+
+  const VegaHomePageData({
+    required this.hero,
+    required this.shelves,
+  });
+
+  List<VegaMediaItem> get home => shelves.isNotEmpty ? shelves.first.items : [];
+  List<VegaMediaItem> get netflix => shelves.length > 1 ? shelves[1].items : [];
+  List<VegaMediaItem> get disney => shelves.length > 2 ? shelves[2].items : [];
+  List<VegaMediaItem> get prime => shelves.length > 3 ? shelves[3].items : [];
+}
+
+class VegaEpisodeItem {
+  final int season;
+  final int episode;
+  final String title;
+  final String? description;
+  final String? thumbnail;
+  final String url;
+
+  VegaEpisodeItem({
+    required this.season,
+    required this.episode,
+    required this.title,
+    this.description,
+    this.thumbnail,
+    required this.url,
+  });
+}
+
+class VegaMediaDetail {
+  final String title;
+  final String poster;
+  final String backdrop;
+  final String description;
+  final List<String> cast;
+  final List<String> genres;
+  final String rating;
+  final String year;
+  final bool isSeries;
+  final List<VegaEpisodeItem> episodes;
+  final List<StreamLink> movieStreams;
+
+  VegaMediaDetail({
+    required this.title,
+    required this.poster,
+    required this.backdrop,
+    required this.description,
+    required this.cast,
+    required this.genres,
+    required this.rating,
+    required this.year,
+    required this.isSeries,
+    required this.episodes,
+    required this.movieStreams,
+  });
+}
 
 /// Model for a stream link result
 class StreamLink {
@@ -74,30 +182,421 @@ class VegaSearchResponse {
 }
 
 class VegaMoviesProvider {
-  static const String _defaultMainUrl = 'https://vegamovies.mq';
-  static const String _dynamicUrlsEndpoint =
-      'https://raw.githubusercontent.com/SaurabhKaperwan/Utils/refs/heads/main/urls.json';
-  static const String _userAgent =
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+  static const String _userAgent = ProviderConfig.defaultUserAgent;
+  static const String _cinemetaUrl = ProviderConfig.cinemetaUrl;
 
-  /// Fetch the latest active base URL from GitHub
-  static Future<String> _getLatestBaseUrl() async {
+  /// Fetch the latest active base URL from centralized ProviderConfig
+  static Future<String> _getLatestBaseUrl([String providerKey = 'vegamovies']) async {
+    return ProviderConfig.resolveBaseUrl(providerKey);
+  }
+
+  /// Scrape elements from a category page with universal anchor-image matcher
+  static Future<List<VegaMediaItem>> _scrapeCategoryPage(String url) async {
     try {
       final response = await http.get(
-        Uri.parse(_dynamicUrlsEndpoint),
+        Uri.parse(url),
         headers: {'User-Agent': _userAgent},
-      );
-      if (response.statusCode == 200) {
-        final Map<String, dynamic> urls = json.decode(response.body);
-        final vegaUrl = urls['vegamovies'];
-        if (vegaUrl != null && vegaUrl.toString().isNotEmpty) {
-          return vegaUrl;
+      ).timeout(const Duration(seconds: 15));
+
+      if (response.statusCode != 200) return [];
+
+      final document = parser.parse(response.body);
+      final List<VegaMediaItem> items = [];
+      final Set<String> seenPermalinks = {};
+
+      // Collect any hero slider links on this page to prevent overlap/duplicates
+      final heroLinks = document
+          .querySelectorAll('.hsl-slide a, .hero-slide a, div[class*="slide"] a, #hero-slider a, .featured-slider a')
+          .map((e) => e.attributes['href'] ?? '')
+          .where((h) => h.isNotEmpty)
+          .toSet();
+
+      // Match all <a> links containing an <img> tag (covers all WordPress movie themes)
+      final allLinks = document.querySelectorAll('a');
+
+      for (final a in allLinks) {
+        final img = a.querySelector('img');
+        if (img == null) continue;
+
+        var href = a.attributes['href'] ?? '';
+        if (href.isEmpty || href == '#' || href == '/' || href.contains('/category/') || href.contains('/page/') || href.contains('/author/')) continue;
+        if (heroLinks.contains(href)) continue; // Skip hero banner duplicates
+        if (seenPermalinks.contains(href)) continue;
+
+        var alt = img.attributes['alt'] ?? a.attributes['title'] ?? a.text.trim();
+        var title = alt
+            .replaceAll(RegExp(r'Download\s*', caseSensitive: false), '')
+            .replaceAll(RegExp(r'\s*\(\d{4}\).*'), '')
+            .split('|').first
+            .trim();
+        if (title.isEmpty || title.length < 2 || title.toLowerCase().contains('official') || title.toLowerCase().contains('telegram')) continue;
+
+        var posterUrl = img.attributes['src'] ?? img.attributes['data-src'] ?? '';
+        if (posterUrl.isEmpty || !posterUrl.startsWith('http')) {
+          posterUrl = img.attributes['data-lazy-src'] ?? img.attributes['data-src'] ?? '';
+        }
+        if (posterUrl.startsWith('//')) {
+          posterUrl = 'https:$posterUrl';
+        }
+        if (posterUrl.isEmpty || posterUrl.contains('logo') || posterUrl.contains('icon')) continue;
+
+        seenPermalinks.add(href);
+
+        // Extract Season/Episode tag if in title (e.g. S01, S02, S1-S3)
+        final seasonMatch = RegExp(r'(S\d{1,2}(?:\s*-\s*S\d{1,2}|E\d{1,2})?)', caseSensitive: false).firstMatch(alt);
+        final episodeBadge = seasonMatch?.group(1)?.toUpperCase();
+
+        final id = ProviderConfig.getStableMediaId(href);
+
+        items.add(
+          VegaMediaItem(
+            title: title,
+            posterPath: posterUrl,
+            permalink: href,
+            episodeBadge: episodeBadge,
+            id: id,
+          ),
+        );
+      }
+
+      return items;
+    } catch (_) {
+      return [];
+    }
+  }
+
+  /// Scrape hero banner slides from VegaMovies
+  static Future<List<VegaMediaItem>> _scrapeHeroSlides(String url) async {
+    try {
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {'User-Agent': _userAgent},
+      ).timeout(const Duration(seconds: 15));
+
+      if (response.statusCode != 200) return [];
+
+      final document = parser.parse(response.body);
+      final slides = document.querySelectorAll('.hsl-slide, .hero-slide, div[class*="slide"]');
+      final List<VegaMediaItem> heroItems = [];
+      final Set<String> seenHeroLinks = {};
+
+      for (final slide in slides) {
+        final a = slide.querySelector('.hsl-title a') ?? slide.querySelector('h2 a') ?? slide.querySelector('.hsl-bg a') ?? slide.querySelector('a');
+        final img = slide.querySelector('.hsl-bg img') ?? slide.querySelector('img');
+        final href = a?.attributes['href'] ?? '';
+        final title = slide.querySelector('.hsl-title')?.text.trim() ?? a?.text.trim() ?? img?.attributes['alt'] ?? '';
+        final poster = img?.attributes['src'] ?? img?.attributes['data-src'] ?? '';
+
+        if (title.isNotEmpty && href.isNotEmpty && !seenHeroLinks.contains(href)) {
+          seenHeroLinks.add(href);
+          heroItems.add(
+            VegaMediaItem(
+              title: title.replaceAll(RegExp(r'Download\s*', caseSensitive: false), '').trim(),
+              posterPath: poster,
+              permalink: href,
+              id: ProviderConfig.getStableMediaId(href),
+            ),
+          );
         }
       }
+
+      return heroItems;
     } catch (_) {
-      // Fallback to default URL
+      return [];
     }
-    return _defaultMainUrl;
+  }
+
+  /// Fetch all Home Screen content shelves for any provider
+  static Future<VegaHomePageData> fetchHomePageContent([String provider = 'vegamovies', String? customBaseUrl]) async {
+    final providerId = provider.toLowerCase();
+    String baseUrl = customBaseUrl ?? await _getLatestBaseUrl(providerId);
+
+    if (providerId == 'bollyflix') {
+      final futures = await Future.wait([
+        _scrapeHeroSlides(baseUrl),
+        _scrapeCategoryPage('$baseUrl/page/1/'),
+        _scrapeCategoryPage('$baseUrl/movies/bollywood/page/1/'),
+        _scrapeCategoryPage('$baseUrl/movies/hollywood/page/1/'),
+        _scrapeCategoryPage('$baseUrl/anime/page/1/'),
+      ]);
+
+      final hero = futures[0].isNotEmpty ? futures[0] : futures[1].take(6).toList();
+      return VegaHomePageData(
+        hero: hero,
+        shelves: [
+          VegaShelfSection(title: 'Latest Releases', categoryPath: '/page/1/', items: futures[1]),
+          VegaShelfSection(title: 'Bollywood', categoryPath: '/movies/bollywood/page/1/', items: futures[2]),
+          VegaShelfSection(title: 'Hollywood', categoryPath: '/movies/hollywood/page/1/', items: futures[3]),
+          VegaShelfSection(title: 'Anime', categoryPath: '/anime/page/1/', items: futures[4]),
+        ].where((s) => s.items.isNotEmpty).toList(),
+      );
+    }
+
+    if (providerId == 'moviesdrive') {
+      final futures = await Future.wait([
+        _scrapeHeroSlides(baseUrl),
+        _scrapeCategoryPage('$baseUrl/page/1/'),
+        _scrapeCategoryPage('$baseUrl/category/web-series/'),
+        _scrapeCategoryPage('$baseUrl/category/bollywood/'),
+        _scrapeCategoryPage('$baseUrl/category/hollywood/'),
+      ]);
+
+      final hero = futures[0].isNotEmpty ? futures[0] : futures[1].take(6).toList();
+      return VegaHomePageData(
+        hero: hero,
+        shelves: [
+          VegaShelfSection(title: 'Latest Releases', categoryPath: '/page/1/', items: futures[1]),
+          VegaShelfSection(title: 'Web Series', categoryPath: '/category/web-series/', items: futures[2]),
+          VegaShelfSection(title: 'Bollywood', categoryPath: '/category/bollywood/', items: futures[3]),
+          VegaShelfSection(title: 'Hollywood', categoryPath: '/category/hollywood/', items: futures[4]),
+        ].where((s) => s.items.isNotEmpty).toList(),
+      );
+    }
+
+    // Default: Scrape all VegaMovies categories dynamically
+    final mirror = baseUrl.isNotEmpty ? baseUrl : await _getLatestBaseUrl(providerId);
+
+    // Dynamic category definitions based on VegaMovies taxonomy
+    final categories = [
+      {'title': 'Latest Releases', 'path': '/'},
+      {'title': 'Netflix Series', 'path': '/category/web-series/netflix/'},
+      {'title': 'Disney Plus Hotstar', 'path': '/category/web-series/disney-plus-hotstar/'},
+      {'title': 'Amazon Prime Video', 'path': '/category/web-series/amazon-prime-video/'},
+      {'title': 'Korean Series', 'path': '/category/korean-series/'},
+      {'title': 'Anime Series', 'path': '/category/anime-series/'},
+      {'title': 'MX Original', 'path': '/category/web-series/mx-original/'},
+    ];
+
+    debugPrint('📡 [VegaMovies] Fetching Hero Banner & ${categories.length} Category Shelves from $mirror...');
+
+    // Fetch hero banner and all categories concurrently
+    final heroFuture = _scrapeHeroSlides(mirror);
+    final categoryFutures = categories.map((cat) async {
+      final path = cat['path']!;
+      final fullUrl = path == '/' ? '$mirror/' : '$mirror$path';
+      final items = await _scrapeCategoryPage(fullUrl);
+      return VegaShelfSection(
+        title: cat['title']!,
+        categoryPath: path,
+        items: items,
+      );
+    }).toList();
+
+    final results = await Future.wait([
+      heroFuture,
+      ...categoryFutures,
+    ]);
+
+    List<VegaMediaItem> heroItems = results[0] as List<VegaMediaItem>;
+    List<VegaShelfSection> shelves = results.sublist(1).cast<VegaShelfSection>();
+
+    // Keep only non-empty shelves
+    shelves = shelves.where((s) => s.items.isNotEmpty).toList();
+
+    if (heroItems.isEmpty && shelves.isNotEmpty) {
+      heroItems = shelves.first.items.take(6).toList();
+    }
+
+    debugPrint('🎉 [VegaMovies Complete] Fetched ${heroItems.length} Hero items and ${shelves.length} populated category shelves');
+    for (final s in shelves) {
+      debugPrint('   • [${s.title}]: ${s.items.length} items');
+    }
+
+    return VegaHomePageData(
+      hero: heroItems,
+      shelves: shelves,
+    );
+  }
+
+  /// Fetch next page of content for pagination with clear console logging
+  static Future<List<VegaMediaItem>> fetchPage({
+    String provider = 'vegamovies',
+    required int page,
+    String? customBaseUrl,
+  }) async {
+    final providerId = provider.toLowerCase();
+    final baseUrl = customBaseUrl ?? await _getLatestBaseUrl(providerId);
+    final pageUrl = '$baseUrl/page/$page/';
+
+    debugPrint('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    debugPrint('📄 [Pagination Fetch] Requesting Page #$page');
+    debugPrint('🔗 [Pagination URL]: $pageUrl');
+    debugPrint('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+    final items = await _scrapeCategoryPage(pageUrl);
+
+    debugPrint('✅ [Pagination Success] Page #$page loaded ${items.length} new items from: $pageUrl');
+    return items;
+  }
+
+  /// Scrape full media details (synopsis, cast, episodes, streaming links)
+  static Future<VegaMediaDetail?> fetchMediaDetails(String pageUrl) async {
+    try {
+      final baseUrl = await _getLatestBaseUrl();
+      var fullUrl = pageUrl;
+      if (!fullUrl.startsWith('http')) {
+        fullUrl = '$baseUrl/${fullUrl.startsWith('/') ? fullUrl.substring(1) : fullUrl}';
+      }
+
+      final response = await http.get(
+        Uri.parse(fullUrl),
+        headers: {'User-Agent': _userAgent},
+      ).timeout(const Duration(seconds: 15));
+
+      if (response.statusCode != 200) return null;
+
+      final document = parser.parse(response.body);
+
+      var title = document.querySelector('title')?.text ?? '';
+      title = title.replaceAll(RegExp(r'Download\s*', caseSensitive: false), '').split('|').first.trim();
+
+      // Multi-selector image extraction for poster
+      var posterUrl = document.querySelector('meta[property="og:image"]')?.attributes['content'] ??
+          document.querySelector('meta[name="twitter:image"]')?.attributes['content'] ??
+          '';
+
+      if (posterUrl.isEmpty) {
+        final imgEl = document.querySelector('.entry-content img, article img, p img, .post-thumbnail img, img[src*="uploads"], img[src*="wp-content"]');
+        posterUrl = imgEl?.attributes['src'] ??
+            imgEl?.attributes['data-src'] ??
+            imgEl?.attributes['data-lazy-src'] ??
+            imgEl?.attributes['data-cfsrc'] ??
+            imgEl?.attributes['data-original'] ??
+            '';
+      }
+
+      if (posterUrl.startsWith('//')) {
+        posterUrl = 'https:$posterUrl';
+      }
+
+      final imdbUrl = document.querySelector('a[href*="imdb.com/title/"]')?.attributes['href'] ?? '';
+      String? imdbId;
+      if (imdbUrl.isNotEmpty) {
+        final match = RegExp(r'tt\d+').firstMatch(imdbUrl);
+        imdbId = match?.group(0);
+      }
+
+      // Accurate Series vs Movie classification (CloudStream Kotlin reference)
+      final isSeries = (RegExp(r'Series[- ]SYNOPSIS|Series Info|Series synopsis', caseSensitive: false).hasMatch(document.outerHtml) ||
+              fullUrl.contains('/category/web-series/') ||
+              fullUrl.contains('/category/anime-series/') ||
+              fullUrl.contains('/category/korean-series/')) &&
+          !document.outerHtml.contains('Movie-SYNOPSIS/PLOT');
+
+      var description = '';
+      List<String> cast = [];
+      List<String> genres = [];
+      String rating = '7.0/10.0';
+      String year = '';
+      String backdrop = posterUrl;
+
+      // 1. Try Cinemeta by IMDB ID
+      final tvtype = isSeries ? 'series' : 'movie';
+      if (imdbId != null && imdbId.isNotEmpty) {
+        try {
+          final metaRes = await http.get(Uri.parse('$_cinemetaUrl/$tvtype/$imdbId.json')).timeout(const Duration(seconds: 4));
+          if (metaRes.statusCode == 200) {
+            final data = json.decode(metaRes.body)['meta'];
+            if (data != null) {
+              title = data['name'] ?? title;
+              description = data['description'] ?? '';
+              if (data['cast'] is List) {
+                cast = List<String>.from(data['cast']);
+              }
+              if (data['genre'] is List) {
+                genres = List<String>.from(data['genre']);
+              }
+              rating = '${data['imdbRating'] ?? '7.0'}/10.0';
+              year = data['year']?.toString() ?? '';
+              posterUrl = data['poster'] ?? posterUrl;
+              backdrop = data['background'] ?? posterUrl;
+            }
+          }
+        } catch (_) {}
+      }
+
+      // 2. Fallback Cinemeta search by title if backdrop or description is still empty
+      if (backdrop.isEmpty || description.isEmpty) {
+        try {
+          final cleanTitle = title.replaceAll(RegExp(r'\s*\(\d{4}\).*'), '').trim();
+          final searchRes = await http.get(
+            Uri.parse('https://v3-cinemeta.strem.io/catalog/$tvtype/top/search=${Uri.encodeComponent(cleanTitle)}.json'),
+          ).timeout(const Duration(seconds: 4));
+
+          if (searchRes.statusCode == 200) {
+            final metas = json.decode(searchRes.body)['metas'] as List?;
+            if (metas != null && metas.isNotEmpty) {
+              final first = metas.first;
+              if (posterUrl.isEmpty) posterUrl = first['poster'] ?? '';
+              if (backdrop.isEmpty) backdrop = first['background'] ?? posterUrl;
+              if (description.isEmpty) description = first['description'] ?? '';
+              if (genres.isEmpty && first['genres'] is List) {
+                genres = List<String>.from(first['genres']);
+              }
+            }
+          }
+        } catch (_) {}
+      }
+
+      if (description.isEmpty) {
+        final descEl = document.querySelector('h3 span, p strong, p');
+        description = descEl?.text.trim() ?? 'No synopsis available.';
+      }
+
+      final List<VegaEpisodeItem> episodes = [];
+      final List<StreamLink> movieStreams = [];
+
+      if (isSeries) {
+        // Find episode links within main content
+        final contentEl = document.querySelector('.entry-content, article, main') ?? document;
+        final aTags = contentEl.querySelectorAll('a');
+        int epCounter = 1;
+        final Set<String> seenEpisodeUrls = {};
+
+        for (final a in aTags) {
+          final text = a.text.trim();
+          final href = a.attributes['href'] ?? '';
+          if (href.isEmpty || href == '#' || seenEpisodeUrls.contains(href)) continue;
+
+          if (text.contains('Episode') || text.contains('V-Cloud') || text.contains('Download') || text.contains('E0') || text.contains('EP')) {
+            final epMatch = RegExp(r'(?:Episode|EP|E)\s*(\d+)', caseSensitive: false).firstMatch(text);
+            final epNum = epMatch != null ? int.tryParse(epMatch.group(1)!) ?? epCounter : epCounter;
+
+            seenEpisodeUrls.add(href);
+            episodes.add(
+              VegaEpisodeItem(
+                season: 1,
+                episode: epNum,
+                title: 'Episode $epNum',
+                description: 'Watch or download Episode $epNum in high quality.',
+                thumbnail: backdrop.isNotEmpty ? backdrop : posterUrl,
+                url: href,
+              ),
+            );
+            epCounter++;
+          }
+        }
+      } else {
+        // Extract movie direct links
+        movieStreams.addAll(await fetchStreams(title));
+      }
+
+      return VegaMediaDetail(
+        title: title,
+        poster: posterUrl,
+        backdrop: backdrop.isNotEmpty ? backdrop : posterUrl,
+        description: description,
+        cast: cast,
+        genres: genres,
+        rating: rating,
+        year: year,
+        isSeries: isSeries,
+        episodes: episodes,
+        movieStreams: movieStreams,
+      );
+    } catch (_) {
+      return null;
+    }
   }
 
   /// Search for the movie using search.php
@@ -268,29 +767,36 @@ class VCloudExtractor {
     return match?.group(1);
   }
 
-  /// Resolve redirects manually (up to 7)
-  static Future<String?> _resolveFinalUrl(String startUrl) async {
+  /// Resolve redirects manually (up to 7) using GET with 1-byte range
+  static Future<String?> _resolveFinalUrl(String startUrl, {String? referer}) async {
     var currentUrl = startUrl;
     for (int i = 0; i < 7; i++) {
       try {
-        final request = http.Request('HEAD', Uri.parse(currentUrl));
+        final request = http.Request('GET', Uri.parse(currentUrl));
         request.headers['User-Agent'] = _userAgent;
+        request.headers['Range'] = 'bytes=0-0';
+        if (referer != null && referer.isNotEmpty) {
+          request.headers['Referer'] = referer;
+        }
         request.followRedirects = false;
 
         final client = http.Client();
-        final streamedResponse = await client.send(request).timeout(const Duration(seconds: 5));
+        final streamedResponse = await client.send(request).timeout(const Duration(seconds: 6));
         client.close();
 
         final statusCode = streamedResponse.statusCode;
-        if (statusCode == 200 || (statusCode >= 300 && statusCode < 400)) {
+        if (statusCode >= 300 && statusCode < 400) {
           final location = streamedResponse.headers['location'];
-          if (location == null || location.isEmpty) break;
-          currentUrl = location;
-        } else {
-          return null;
+          if (location != null && location.isNotEmpty) {
+            currentUrl = location.startsWith('http')
+                ? location
+                : (Uri.parse(currentUrl).origin + (location.startsWith('/') ? location : '/$location'));
+            continue;
+          }
         }
+        break;
       } catch (_) {
-        return null;
+        break;
       }
     }
     return currentUrl;
@@ -340,11 +846,9 @@ class VCloudExtractor {
       String link = '';
 
       if (newUrl.contains('/video/')) {
-        // doc.selectFirst("div.vd > center > a")?.attr("href")
         final aTag = document.querySelector('div.vd center a');
         link = aTag?.attributes['href'] ?? '';
       } else {
-        // Find script that contains 'var url =' (the actual URL assignment, not random URLs in code)
         final scripts = document.querySelectorAll('script');
         String scriptContent = '';
         for (final s in scripts) {
@@ -371,7 +875,7 @@ class VCloudExtractor {
       // Fetch the resolved page with download buttons
       final resolvedResponse = await http.get(
         Uri.parse(link),
-        headers: {'User-Agent': _userAgent},
+        headers: {'User-Agent': _userAgent, 'Referer': newUrl},
       );
       if (resolvedResponse.statusCode != 200) return links;
 
@@ -380,12 +884,21 @@ class VCloudExtractor {
       final size = resolvedDoc.querySelector('i#size')?.text.trim() ?? '';
       final qualityText = '$header [$size]';
 
-      // Process download buttons: document.select("h2 a.btn")
-      final buttons = resolvedDoc.querySelectorAll('h2 a.btn');
+      // 1. Check for embedded Pixeldrain link
+      final pxlUrl = _extractPxlUrl(resolvedResponse.body);
+      if (pxlUrl != null && pxlUrl.isNotEmpty) {
+        final pxlId = pxlUrl.split('/').last.split('?').first;
+        final directPxl = 'https://pixeldrain.com/api/file/$pxlId?download';
+        links.add(StreamLink(name: 'Pixeldrain [High Speed Direct]', streamUrl: directPxl, quality: qualityText));
+      }
+
+      // 2. Process download buttons
+      final buttons = resolvedDoc.querySelectorAll('h2 a.btn, a.btn');
 
       for (final button in buttons) {
         final btnLink = button.attributes['href'] ?? '';
-        final text = button.text;
+        final text = button.text.trim();
+        if (btnLink.isEmpty || btnLink == '#') continue;
 
         if (text.contains('FSL Server')) {
           links.add(StreamLink(name: 'V-Cloud [FSL Server]', streamUrl: btnLink, quality: qualityText));
@@ -394,9 +907,8 @@ class VCloudExtractor {
         } else if (text.contains('Mega Server')) {
           links.add(StreamLink(name: 'V-Cloud [Mega Server]', streamUrl: btnLink, quality: qualityText));
         } else if (text.contains('Download File')) {
-          links.add(StreamLink(name: 'V-Cloud [Download File]', streamUrl: btnLink, quality: qualityText));
-        } else if (text.contains('BuzzServer')) {
-          // Follow the /download redirect
+          links.add(StreamLink(name: 'V-Cloud [Direct Download]', streamUrl: btnLink, quality: qualityText));
+        } else if (text.contains('BuzzServer') || text.contains('Buzz Server')) {
           try {
             final buzzResponse = await http.get(
               Uri.parse('$btnLink/download'),
@@ -405,11 +917,10 @@ class VCloudExtractor {
             final dlink = buzzResponse.headers['hx-redirect'] ?? '';
             if (dlink.isNotEmpty) {
               final buzzBase = _getBaseUrl(btnLink);
-              links.add(StreamLink(name: 'V-Cloud [BuzzServer]', streamUrl: buzzBase + dlink, quality: qualityText));
+              final directUrl = dlink.startsWith('http') ? dlink : (buzzBase + dlink);
+              links.add(StreamLink(name: 'V-Cloud [BuzzServer]', streamUrl: directUrl, quality: qualityText));
             }
-          } catch (_) {
-            // Skip this server if it fails
-          }
+          } catch (_) {}
         } else if (btnLink.contains('pixeldra')) {
           final pixelLink = _extractPxlUrl(resolvedResponse.body);
           if (pixelLink != null && pixelLink.isNotEmpty) {
@@ -419,8 +930,8 @@ class VCloudExtractor {
                 : '$pixelBase/api/file/${pixelLink.split('/').last}?download';
             links.add(StreamLink(name: 'V-Cloud [Pixeldrain]', streamUrl: finalURL, quality: qualityText));
           }
-        } else if (text.contains('Server : 10Gbps')) {
-          final redirectUrl = await _resolveFinalUrl(btnLink);
+        } else if (text.contains('Server : 10Gbps') || text.contains('10Gbps')) {
+          final redirectUrl = await _resolveFinalUrl(btnLink, referer: link);
           if (redirectUrl != null) {
             var finalUrl = redirectUrl;
             if (finalUrl.contains('link=')) {
@@ -433,6 +944,21 @@ class VCloudExtractor {
     } catch (_) {
       // Return whatever links were collected so far
     }
+
+    // Sort links so direct/fast streams appear first
+    links.sort((a, b) {
+      int score(StreamLink link) {
+        if (link.name.contains('FSLv2') || link.streamUrl.contains('r2.cloudflarestorage.com')) return 100;
+        if (link.name.contains('Pixeldrain') || link.streamUrl.contains('pixeldrain')) return 90;
+        if (link.name.contains('10Gbps') || link.streamUrl.contains('googleusercontent')) return 80;
+        if (link.name.contains('BuzzServer')) return 70;
+        if (link.name.contains('Mega Server')) return 60;
+        if (link.name.contains('Direct Download')) return 55;
+        if (link.name.contains('FSL Server')) return 50;
+        return 10;
+      }
+      return score(b).compareTo(score(a));
+    });
 
     return links;
   }

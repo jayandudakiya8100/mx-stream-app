@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:http/http.dart' as http;
+import 'provider_config.dart';
 
 class MediaProviderItem {
   final String id;
@@ -33,41 +34,84 @@ class MediaProviderService {
   static const String _providerKey = 'selected_media_provider';
   static const String _cachedProvidersKey = 'cached_media_providers';
 
-  static const String _urlsEndpoint =
-      'https://raw.githubusercontent.com/SaurabhKaperwan/Utils/refs/heads/main/urls.json';
+  /// Initial minimal fallback providers before network load
+  static List<MediaProviderItem> get defaultProviders => [
+        const MediaProviderItem(id: 'none', name: 'None'),
+        const MediaProviderItem(id: 'random', name: 'Random'),
+        const MediaProviderItem(
+          id: 'vegamovies',
+          name: 'VegaMovies',
+        ),
+      ];
 
-  static const String _userAgent =
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+  /// Get provider URL dynamically from cache or resolver
+  static Future<String> getProviderUrl(String providerName) =>
+      ProviderConfig.resolveBaseUrl(providerName);
 
-  // Default base providers
-  static const List<MediaProviderItem> defaultProviders = [
-    MediaProviderItem(id: 'none', name: 'None'),
-    MediaProviderItem(id: 'random', name: 'Random'),
-  ];
-
-  /// Get currently selected provider name (defaults to 'None')
+  /// Get currently selected provider name (defaults to ProviderConfig.defaultActiveProvider)
   static String getSelectedProvider() {
     try {
-      final box = Hive.box(_sessionBoxName);
-      final saved = box.get(_providerKey) as String?;
-      if (saved != null && saved.isNotEmpty) {
-        return saved;
+      if (Hive.isBoxOpen(_sessionBoxName)) {
+        final box = Hive.box(_sessionBoxName);
+        final saved = box.get(_providerKey) as String?;
+        if (saved != null && saved.isNotEmpty) {
+          return saved;
+        }
       }
     } catch (_) {}
-    return 'None';
+    return ProviderConfig.defaultActiveProvider;
   }
 
   /// Set and persist selected provider
   static Future<void> setSelectedProvider(String providerName) async {
     try {
-      final box = Hive.box(_sessionBoxName);
+      final box = Hive.isBoxOpen(_sessionBoxName)
+          ? Hive.box(_sessionBoxName)
+          : await Hive.openBox(_sessionBoxName);
       await box.put(_providerKey, providerName);
     } catch (e) {
       debugPrint('Error saving selected provider: $e');
     }
   }
 
-  /// Fetch providers dynamically from remote source with local cache fallback
+  /// Helper to format provider key nicely (e.g. 'vegamovies' -> 'VegaMovies')
+  static String _formatDisplayName(String key) {
+    if (key.isEmpty) return key;
+    final lower = key.toLowerCase();
+    const knownNames = {
+      'vegamovies': 'VegaMovies',
+      'bollyflix': 'BollyFlix',
+      'moviesdrive': 'MoviesDrive',
+      'moviesmod': 'Moviesmod',
+      'uhdmovies': 'UHDMovies',
+      '4khdhub': '4kHDHub',
+      'hdmovie2': 'HDMovie2',
+      'movies4u': 'Movies4U',
+      'rogmovies': 'RogMovies',
+      'multimovies': 'MultiMovies',
+      'nfmirror': 'NFMirror',
+      'skymovies': 'SkyMovies',
+      'topmovies': 'TopMovies',
+      'gdflix': 'GDFlix',
+      'hubcloud': 'HubCloud',
+      'toonstream': 'ToonStream',
+      'zinkmovies': 'ZinkMovies',
+      'vcloud': 'VCloud',
+      'dudefilms': 'DudeFilms',
+      'm4ufree': 'M4UFree',
+      'animedao': 'AnimeDao',
+      'mlsbd': 'MLSBD',
+      'fibwatch': 'FibWatch',
+      'hindmoviez': 'HindMoviez',
+      'rtally': 'RTally',
+    };
+    if (knownNames.containsKey(lower)) {
+      return knownNames[lower]!;
+    }
+    return key[0].toUpperCase() + key.substring(1);
+  }
+
+  /// Fetch providers dynamically strictly from urls.json
   static Future<List<MediaProviderItem>> fetchProviders() async {
     List<MediaProviderItem> list = _loadCachedProviders();
     if (list.isEmpty) {
@@ -75,35 +119,28 @@ class MediaProviderService {
     }
 
     try {
-      final response = await http.get(
-        Uri.parse(_urlsEndpoint),
-        headers: {'User-Agent': _userAgent},
-      ).timeout(const Duration(seconds: 4));
+      final Map<String, MediaProviderItem> providerMap = {};
+      providerMap['none'] = const MediaProviderItem(id: 'none', name: 'None');
+      providerMap['random'] = const MediaProviderItem(id: 'random', name: 'Random');
 
-      if (response.statusCode == 200) {
-        final Map<String, dynamic> remoteData = json.decode(response.body);
-        final List<MediaProviderItem> result = [
-          const MediaProviderItem(id: 'none', name: 'None'),
-          const MediaProviderItem(id: 'random', name: 'Random'),
-        ];
+      // Fetch dynamic providers strictly from urls.json
+      final urls = await ProviderConfig.fetchDynamicUrls();
+      for (final entry in urls.entries) {
+        final key = entry.key;
+        providerMap[key] = MediaProviderItem(
+          id: key,
+          name: _formatDisplayName(key),
+          url: entry.value,
+        );
+      }
 
-        for (final entry in remoteData.entries) {
-          final key = entry.key.trim();
-          final url = entry.value.toString();
-          result.add(
-            MediaProviderItem(
-              id: key.toLowerCase(),
-              name: key,
-              url: url,
-            ),
-          );
-        }
-
+      if (providerMap.length > 2) {
+        final result = providerMap.values.toList();
         _cacheProviders(result);
         return result;
       }
     } catch (e) {
-      debugPrint('Error fetching dynamic providers: $e');
+      debugPrint('Error fetching dynamic providers from urls.json: $e');
     }
 
     return list;

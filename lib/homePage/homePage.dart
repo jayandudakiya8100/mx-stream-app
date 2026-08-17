@@ -13,11 +13,13 @@ import 'package:Mirarr/functions/fetchers/fetch_popular_movies.dart';
 import 'package:Mirarr/functions/fetchers/fetch_streaming_providers.dart';
 import 'package:Mirarr/functions/fetchers/fetch_trending_movies.dart';
 import 'package:Mirarr/functions/fetchers/providers/media_provider_service.dart';
+import 'package:Mirarr/functions/fetchers/providers/vega_movies_provider.dart';
 import 'package:Mirarr/functions/get_base_url.dart';
 import 'package:Mirarr/functions/navigation_provider.dart';
 import 'package:Mirarr/functions/regionprovider_class.dart';
 import 'package:Mirarr/homePage/widgets/continue_watching_card.dart';
 import 'package:Mirarr/homePage/widgets/home_content_card.dart';
+import 'package:Mirarr/homePage/widgets/provider_media_detail_page.dart';
 import 'package:Mirarr/homePage/widgets/set_watch_status_modal.dart';
 import 'package:Mirarr/models/watch_history_model.dart';
 import 'package:Mirarr/moviesPage/UI/gridview_forlists_movies.dart';
@@ -49,13 +51,17 @@ class _HomeScreenState extends State<HomeScreen> {
   final PageController _heroPageController = PageController();
   Timer? _heroAutoSlideTimer;
   String _heroWatchStatus = 'None';
-  String _selectedProvider = 'None';
+  String _selectedProvider = 'VegaMovies';
   List<MediaProviderItem> _dynamicProviders = MediaProviderService.defaultProviders;
+  final Map<int, VegaMediaItem> _vegaItemMap = {};
   List<ContinueWatchingItem> _continueWatchingList = [];
   List<Movie> _homeMovies = [];
-  List<Movie> _netflixContent = [];
-  List<Movie> _disneyContent = [];
-  List<Movie> _primeContent = [];
+  List<VegaShelfSection> _shelves = [];
+
+  // Horizontal pagination state
+  int _currentHomeShelfPage = 1;
+  bool _isLoadingNextPage = false;
+  final ScrollController _homeShelfScrollController = ScrollController();
 
   bool _isLoading = true;
 
@@ -88,10 +94,58 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _selectedProvider = MediaProviderService.getSelectedProvider();
+    _homeShelfScrollController.addListener(_onHomeShelfScroll);
     _fetchDynamicProviders();
     _regionProvider = Provider.of<RegionProvider>(context, listen: false);
     _regionProvider.addListener(_onRegionChanged);
     _loadAllData();
+  }
+
+  void _onHomeShelfScroll() {
+    if (!_homeShelfScrollController.hasClients || _isLoadingNextPage) return;
+    final maxScroll = _homeShelfScrollController.position.maxScrollExtent;
+    final currentScroll = _homeShelfScrollController.position.pixels;
+    if (maxScroll - currentScroll <= 250) {
+      _loadNextPage();
+    }
+  }
+
+  Future<void> _loadNextPage() async {
+    if (_isLoadingNextPage || _selectedProvider.toLowerCase() == 'none') return;
+    _isLoadingNextPage = true;
+    final nextPage = _currentHomeShelfPage + 1;
+
+    try {
+      final newItems = await VegaMoviesProvider.fetchPage(
+        provider: _selectedProvider,
+        page: nextPage,
+      );
+
+      if (newItems.isNotEmpty && mounted) {
+        final existingIds = <int>{
+          ..._homeMovies.map((m) => m.id),
+          ..._heroMovies.map((m) => m.id),
+        };
+
+        final uniqueNewItems = newItems.where((item) => !existingIds.contains(item.id)).toList();
+
+        for (final item in uniqueNewItems) {
+          _vegaItemMap[item.id] = item;
+        }
+        final newMovies = uniqueNewItems.map((e) => e.toMovie()).toList();
+
+        setState(() {
+          _currentHomeShelfPage = nextPage;
+          _homeMovies.addAll(newMovies);
+        });
+      }
+    } catch (_) {} finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingNextPage = false;
+        });
+      }
+    }
   }
 
   Future<void> _fetchDynamicProviders() async {
@@ -105,6 +159,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
+    _homeShelfScrollController.removeListener(_onHomeShelfScroll);
+    _homeShelfScrollController.dispose();
     _heroAutoSlideTimer?.cancel();
     _heroPageController.dispose();
     _regionProvider.removeListener(_onRegionChanged);
@@ -165,89 +221,56 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _loadShelves() async {
-    final region = _regionProvider.currentRegion;
+    _currentHomeShelfPage = 1;
+    if (_selectedProvider.toLowerCase() == 'none') {
+      if (!mounted) return;
+      setState(() {
+        _heroMovie = null;
+        _heroMovies = [];
+        _heroIndex = 0;
+        _homeMovies = [];
+        _shelves = [];
+      });
+      return;
+    }
 
     try {
-      final results = await Future.wait([
-        fetchTrendingMovies(region),
-        fetchPopularMovies(region),
-        fetchNetflixContent(region),
-        fetchDisneyHotstarContent(region),
-        fetchAmazonPrimeContent(region),
-      ]);
-
+      final data = await VegaMoviesProvider.fetchHomePageContent(_selectedProvider);
       if (!mounted) return;
 
-      final trending = results[0];
-      final popular = results[1];
-      final netflix = results[2];
-      final disney = results[3];
-      final prime = results[4];
+      _vegaItemMap.clear();
+      for (final item in [
+        ...data.hero,
+        for (final s in data.shelves) ...s.items,
+      ]) {
+        _vegaItemMap[item.id] = item;
+      }
 
-      final heroes = trending.take(6).toList();
-      final heroList = heroes.isNotEmpty ? heroes : popular.take(6).toList();
-      Movie? hero = heroList.isNotEmpty ? heroList.first : null;
+      final heroList = data.hero.map((e) => e.toMovie()).toList();
+      final latestShelf = data.shelves.isNotEmpty ? data.shelves.first : null;
+      final homeList = latestShelf != null
+          ? latestShelf.items.map((e) => e.toMovie()).toList()
+          : <Movie>[];
+
+      Movie? hero = heroList.isNotEmpty
+          ? heroList.first
+          : (homeList.isNotEmpty ? homeList.first : null);
       String heroStatus = 'None';
       if (hero != null) {
         heroStatus = WatchStatusManager.getStatus(hero.id);
       }
 
-      // If user history is empty, populate continue watching with top trending samples
-      List<ContinueWatchingItem> continueItems = _continueWatchingList;
-      if (continueItems.isEmpty && trending.length > 1) {
-        continueItems = [
-          ContinueWatchingItem(
-            id: trending[1].id,
-            title: trending[1].title,
-            posterPath: trending[1].posterPath,
-            progress: 0.45,
-            type: 'movie',
-          ),
-          if (trending.length > 2)
-            ContinueWatchingItem(
-              id: trending[2].id,
-              title: trending[2].title,
-              posterPath: trending[2].posterPath,
-              episodeBadge: 'S1:E18',
-              progress: 0.75,
-              type: 'tv',
-            ),
-          if (trending.length > 3)
-            ContinueWatchingItem(
-              id: trending[3].id,
-              title: trending[3].title,
-              posterPath: trending[3].posterPath,
-              episodeBadge: 'S1:E10',
-              progress: 0.60,
-              type: 'tv',
-            ),
-          if (trending.length > 4)
-            ContinueWatchingItem(
-              id: trending[4].id,
-              title: trending[4].title,
-              posterPath: trending[4].posterPath,
-              progress: 0.90,
-              type: 'movie',
-            ),
-        ];
-      }
-
       setState(() {
         _heroMovie = hero;
-        _heroMovies = heroList;
+        _heroMovies = heroList.isNotEmpty ? heroList : homeList.take(6).toList();
         _heroIndex = 0;
         _heroWatchStatus = heroStatus;
-        _continueWatchingList = continueItems;
-        _homeMovies = trending;
-        _netflixContent = netflix.isNotEmpty ? netflix : popular;
-        _disneyContent = disney.isNotEmpty ? disney : trending.reversed.toList();
-        _primeContent = prime.isNotEmpty ? prime : popular.reversed.toList();
+        _homeMovies = homeList;
+        _shelves = data.shelves;
       });
 
       _startHeroAutoSlide();
-    } catch (e) {
-      debugPrint('Error loading home shelves: $e');
-    }
+    } catch (_) {}
   }
 
   void _startHeroAutoSlide() {
@@ -269,27 +292,41 @@ class _HomeScreenState extends State<HomeScreen> {
           ? _heroMovies[_heroIndex]
           : _heroMovie;
 
+  void _onTapMovieCard(Movie movie) {
+    final vegaItem = _vegaItemMap[movie.id];
+    if (vegaItem != null) {
+      Navigator.push(
+        context,
+        ExpressivePageRoute(
+          page: ProviderMediaDetailPage(
+            title: vegaItem.title,
+            posterPath: vegaItem.posterPath,
+            permalink: vegaItem.permalink,
+            providerName: _selectedProvider,
+          ),
+        ),
+      );
+    } else {
+      onTapMovie(movie.title, movie.id, context);
+    }
+  }
+
   void _onHeroPlay([Movie? targetMovie]) {
     final movie = targetMovie ?? _currentHeroMovie;
     if (movie == null) return;
-    showWatchOptions(
-      context,
-      movie.id,
-      movie.title,
-      movie.releaseDate,
-      '',
-    );
+    _onTapMovieCard(movie);
   }
 
   void _onHeroInfo([Movie? targetMovie]) {
     final movie = targetMovie ?? _currentHeroMovie;
     if (movie == null) return;
-    onTapMovie(movie.title, movie.id, context);
+    _onTapMovieCard(movie);
   }
 
   Future<void> _onHeroStatusTap([Movie? targetMovie]) async {
     final movie = targetMovie ?? _currentHeroMovie;
     if (movie == null) return;
+    final vegaItem = _vegaItemMap[movie.id];
     final currentStatus = WatchStatusManager.getStatus(movie.id);
     final newStatus = await SetWatchStatusModal.show(
       context,
@@ -297,6 +334,8 @@ class _HomeScreenState extends State<HomeScreen> {
       title: movie.title,
       posterPath: movie.posterPath,
       initialStatus: currentStatus,
+      permalink: vegaItem?.permalink,
+      providerName: _selectedProvider,
     );
     if (newStatus != null && mounted) {
       setState(() {
@@ -376,6 +415,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             setModalState(() {});
                             MediaProviderService.setSelectedProvider(provider.name);
                             Navigator.pop(ctx);
+                            _loadAllData();
                           },
                           borderRadius: BorderRadius.circular(10),
                           child: Padding(
@@ -420,6 +460,70 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Widget _buildEmptyProviderState(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 36.0),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.05),
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white12),
+              ),
+              child: const Icon(
+                Icons.extension_off_rounded,
+                color: Colors.white38,
+                size: 40,
+              ),
+            ),
+            const SizedBox(height: 24),
+            const Text(
+              'No Provider Selected',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.3,
+              ),
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              'Select an active media provider using the button below to browse content from streaming catalogs.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.white54,
+                fontSize: 14,
+                height: 1.45,
+              ),
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              onPressed: _showHomeFilterBottomSheet,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.white,
+                foregroundColor: Colors.black,
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              icon: const Icon(CupertinoIcons.line_horizontal_3_decrease, size: 18),
+              label: const Text(
+                'Select Provider',
+                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -429,6 +533,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final double bottomInset = isTv
         ? 16.0
         : (bottomPadding > 0 ? bottomPadding : 88.0);
+    final isNone = _selectedProvider.toLowerCase() == 'none';
 
     return Container(
       color: Colors.black,
@@ -436,89 +541,93 @@ class _HomeScreenState extends State<HomeScreen> {
         children: [
           Scaffold(
             backgroundColor: Colors.transparent,
-            body: RefreshIndicator(
-              onRefresh: _loadAllData,
-              color: colorScheme.primary,
-              backgroundColor: colorScheme.surfaceContainerHigh,
-              child: CustomScrollView(
-                physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
-                slivers: [
-                  // 1. Hero Spotlight Banner with Transparent Overlay Header
-                  SliverToBoxAdapter(
-                    child: _buildHeroBanner(context),
-                  ),
+            body: isNone
+                ? _buildEmptyProviderState(context)
+                : RefreshIndicator(
+                    onRefresh: _loadAllData,
+                    color: colorScheme.primary,
+                    backgroundColor: colorScheme.surfaceContainerHigh,
+                    child: CustomScrollView(
+                      physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+                      slivers: [
+                        // 1. Hero Spotlight Banner with Transparent Overlay Header
+                        SliverToBoxAdapter(
+                          child: _buildHeroBanner(context),
+                        ),
 
-                  const SliverToBoxAdapter(
-                    child: SizedBox(height: 24),
-                  ),
+                        const SliverToBoxAdapter(
+                          child: SizedBox(height: 24),
+                        ),
 
-                  // 2. Continue Watching Section
-                  if (_continueWatchingList.isNotEmpty || _isLoading)
-                    SliverToBoxAdapter(
-                      child: _buildContinueWatchingSection(context),
+                        // 2. Continue Watching Section
+                        if (_continueWatchingList.isNotEmpty || _isLoading)
+                          SliverToBoxAdapter(
+                            child: _buildContinueWatchingSection(context),
+                          ),
+
+                        // 3. Dynamic Category Shelves mapped one by one from VegaMovies!
+                        if (_isLoading && _shelves.isEmpty) ...[
+                          for (final dummyTitle in [
+                            'Latest Releases',
+                            'Netflix Series',
+                            'Disney Plus Hotstar',
+                            'Amazon Prime Video',
+                            'Korean Series',
+                            'Anime Series'
+                          ])
+                            SliverToBoxAdapter(
+                              child: _buildContentShelf(
+                                title: dummyTitle,
+                                movies: _dummyMovies,
+                              ),
+                            ),
+                        ] else ...[
+                          for (int i = 0; i < _shelves.length; i++) ...[
+                            SliverToBoxAdapter(
+                              child: _buildContentShelf(
+                                title: _shelves[i].title,
+                                movies: i == 0
+                                    ? _homeMovies
+                                    : _shelves[i].items.map((e) => e.toMovie()).toList(),
+                                scrollController:
+                                    i == 0 ? _homeShelfScrollController : null,
+                                isLoadingNext:
+                                    i == 0 ? _isLoadingNextPage : false,
+                                onSeeAll: () => _openGridCategory(
+                                  _shelves[i].title,
+                                  i == 0
+                                      ? _homeMovies
+                                      : _shelves[i].items.map((e) => e.toMovie()).toList(),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+
+                        // Bottom Spacing for Bottom Navigation Bar
+                        SliverToBoxAdapter(
+                          child: SizedBox(
+                            height: isTv ? 24.0 : BottomBar.getHeight(context) + 16,
+                          ),
+                        ),
+                      ],
                     ),
-
-                  // 3. Home / Trending Shelf
-                  SliverToBoxAdapter(
-                    child: _buildContentShelf(
-                      title: 'Home',
-                      movies: _homeMovies,
-                      onSeeAll: () => _openGridCategory('Home', _homeMovies),
-                    ),
                   ),
-
-                  // 4. Netflix Shelf
-                  SliverToBoxAdapter(
-                    child: _buildContentShelf(
-                      title: 'Netflix',
-                      movies: _netflixContent,
-                      onSeeAll: () => _openGridCategory('Netflix', _netflixContent),
-                    ),
-                  ),
-
-                  // 5. Disney Plus Hotstar Shelf
-                  SliverToBoxAdapter(
-                    child: _buildContentShelf(
-                      title: 'Disney Plus Hotstar',
-                      movies: _disneyContent,
-                      onSeeAll: () => _openGridCategory('Disney Plus Hotstar', _disneyContent),
-                    ),
-                  ),
-
-                  // 6. Amazon Prime Video Shelf
-                  if (_primeContent.isNotEmpty)
-                    SliverToBoxAdapter(
-                      child: _buildContentShelf(
-                        title: 'Prime Video',
-                        movies: _primeContent,
-                        onSeeAll: () => _openGridCategory('Prime Video', _primeContent),
-                      ),
-                    ),
-
-                  // Bottom Spacing for Bottom Navigation Bar
-                  SliverToBoxAdapter(
-                    child: SizedBox(
-                      height: isTv ? 24.0 : BottomBar.getHeight(context) + 16,
-                    ),
-                  ),
-                ],
-              ),
-            ),
           ),
 
-          // Floating Action Button (FAB) with CupertinoIcons.line_horizontal_3_decrease
+          // Floating Action Button (FAB)
           Positioned(
             right: 20,
             bottom: bottomInset + 12,
             child: TvFocusWrapper(
               onTap: _showHomeFilterBottomSheet,
-              borderRadius: 25,
+              borderRadius: 24,
               child: Container(
-                width: 48,
                 height: 48,
+                padding: EdgeInsets.symmetric(horizontal: isNone ? 14 : 16),
                 decoration: BoxDecoration(
                   color: const Color(0xFF141414),
-                  shape: BoxShape.circle,
+                  borderRadius: BorderRadius.circular(24),
                   border: Border.all(
                     color: Colors.white.withValues(alpha: 0.15),
                     width: 1,
@@ -531,12 +640,26 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ],
                 ),
-                child: const Center(
-                  child: Icon(
-                    CupertinoIcons.line_horizontal_3_decrease,
-                    color: Colors.white,
-                    size: 20,
-                  ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      CupertinoIcons.line_horizontal_3_decrease,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                    if (!isNone) ...[
+                      const SizedBox(width: 8),
+                      Text(
+                        _selectedProvider,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ),
             ),
@@ -910,56 +1033,75 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         const SizedBox(height: 8),
 
-        // Horizontal List View
+        // Horizontal List View with Edge Fading Effect
         SizedBox(
           height: 255,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            itemCount: items.length,
-            itemBuilder: (context, index) {
-              final item = items[index];
-              final card = ContinueWatchingCard(
-                item: item,
-              );
-
-              return Padding(
-                padding: const EdgeInsets.only(right: 14),
-                child: loading
-                    ? Skeletonizer(
-                        enabled: true,
-                        containersColor: colorScheme.surfaceContainerHigh,
-                        child: card,
-                      )
-                    : TvFocusWrapper(
-                        onTap: () {
-                          if (item.type == 'tv') {
-                            onTapSerie(item.title, item.id, context);
-                          } else {
-                            onTapMovie(item.title, item.id, context);
-                          }
-                        },
-                        child: card,
-                      ),
-              );
+          child: ShaderMask(
+            shaderCallback: (Rect bounds) {
+              return const LinearGradient(
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+                colors: [
+                  Colors.white,
+                  Colors.white,
+                  Colors.white,
+                  Colors.transparent,
+                ],
+                stops: [0.0, 0.02, 0.90, 1.0],
+              ).createShader(bounds);
             },
+            blendMode: BlendMode.dstIn,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              physics: const BouncingScrollPhysics(),
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              itemCount: items.length,
+              itemBuilder: (context, index) {
+                final item = items[index];
+                final card = ContinueWatchingCard(
+                  item: item,
+                );
+
+                return Padding(
+                  padding: const EdgeInsets.only(right: 14),
+                  child: loading
+                      ? Skeletonizer(
+                          enabled: true,
+                          containersColor: colorScheme.surfaceContainerHigh,
+                          child: card,
+                        )
+                      : TvFocusWrapper(
+                          onTap: () {
+                            if (item.type == 'tv') {
+                              onTapSerie(item.title, item.id, context);
+                            } else {
+                              onTapMovie(item.title, item.id, context);
+                            }
+                          },
+                          child: card,
+                        ),
+                );
+              },
+            ),
           ),
         ),
       ],
     );
   }
 
-  // --- Reusable Horizontal Content Shelf ---
+  // --- Reusable Horizontal Content Shelf with Edge Fading & Infinite Scroll ---
   Widget _buildContentShelf({
     required String title,
     required List<Movie> movies,
-    required VoidCallback onSeeAll,
+    VoidCallback? onSeeAll,
+    ScrollController? scrollController,
+    bool isLoadingNext = false,
   }) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final loading = movies.isEmpty && _isLoading;
     final displayList = movies.isEmpty ? _dummyMovies : movies;
+    final totalCount = displayList.length + (isLoadingNext ? 1 : 0);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -980,48 +1122,79 @@ class _HomeScreenState extends State<HomeScreen> {
                   color: colorScheme.onSurface,
                 ),
               ),
-              IconButton(
-                icon: Icon(
-                  Icons.arrow_forward_rounded,
-                  color: colorScheme.onSurface,
-                  size: 22,
+              if (onSeeAll != null)
+                IconButton(
+                  icon: Icon(
+                    Icons.arrow_forward_rounded,
+                    color: colorScheme.onSurface,
+                    size: 22,
+                  ),
+                  tooltip: 'See All $title',
+                  onPressed: onSeeAll,
                 ),
-                tooltip: 'See All $title',
-                onPressed: onSeeAll,
-              ),
             ],
           ),
         ),
         const SizedBox(height: 8),
 
-        // Horizontal List View
+        // Horizontal List View with Edge Fading Effect
         SizedBox(
           height: 250,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            itemCount: displayList.length,
-            itemBuilder: (context, index) {
-              final movie = displayList[index];
-              final card = HomeContentCard(
-                movie: movie,
-              );
-
-              return Padding(
-                padding: const EdgeInsets.only(right: 14),
-                child: loading
-                    ? Skeletonizer(
-                        enabled: true,
-                        containersColor: colorScheme.surfaceContainerHigh,
-                        child: card,
-                      )
-                    : TvFocusWrapper(
-                        onTap: () => onTapMovie(movie.title, movie.id, context),
-                        child: card,
-                      ),
-              );
+          child: ShaderMask(
+            shaderCallback: (Rect bounds) {
+              return const LinearGradient(
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+                colors: [
+                  Colors.white,
+                  Colors.white,
+                  Colors.white,
+                  Colors.transparent,
+                ],
+                stops: [0.0, 0.02, 0.90, 1.0],
+              ).createShader(bounds);
             },
+            blendMode: BlendMode.dstIn,
+            child: ListView.builder(
+              controller: scrollController,
+              scrollDirection: Axis.horizontal,
+              physics: const BouncingScrollPhysics(),
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              itemCount: totalCount,
+              itemBuilder: (context, index) {
+                if (index >= displayList.length) {
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 14),
+                    child: Skeletonizer(
+                      enabled: true,
+                      containersColor: colorScheme.surfaceContainerHigh,
+                      child: HomeContentCard(
+                        movie: _dummyMovies.first,
+                      ),
+                    ),
+                  );
+                }
+
+                final movie = displayList[index];
+                final card = HomeContentCard(
+                  movie: movie,
+                );
+
+                return Padding(
+                  padding: const EdgeInsets.only(right: 14),
+                  child: loading
+                      ? Skeletonizer(
+                          enabled: true,
+                          containersColor: colorScheme.surfaceContainerHigh,
+                          child: card,
+                        )
+                      : TvFocusWrapper(
+                          onTap: () => _onTapMovieCard(movie),
+                          child: card,
+                        ),
+                );
+              },
+            ),
           ),
         ),
       ],
