@@ -273,14 +273,14 @@ class _MovieSearchScreenState extends State<MovieSearchScreen> {
                 _buildSectionHeader('Trending Movies', null),
                 const SizedBox(height: 10),
                 SizedBox(
-                  height: 320,
+                  height: 250,
                   child: ScrollConfiguration(
                     behavior: _movieScrollBehavior,
                     child: ListView.builder(
                       scrollDirection: Axis.horizontal,
                       physics: const BouncingScrollPhysics(),
                       padding: const EdgeInsets.symmetric(horizontal: 16),
-                      itemExtent: 262,
+                      itemExtent: 154,
                       itemCount: trendingMovies.isEmpty
                           ? _dummyMovies.length
                           : trendingMovies.length,
@@ -311,14 +311,14 @@ class _MovieSearchScreenState extends State<MovieSearchScreen> {
                 _buildSectionHeader('Popular Movies', null),
                 const SizedBox(height: 12),
                 SizedBox(
-                  height: 320,
+                  height: 250,
                   child: ScrollConfiguration(
                     behavior: _movieScrollBehavior,
                     child: ListView.builder(
                       scrollDirection: Axis.horizontal,
                       physics: const BouncingScrollPhysics(),
                       padding: const EdgeInsets.symmetric(horizontal: 16),
-                      itemExtent: 262,
+                      itemExtent: 154,
                       itemCount: popularMovies.isEmpty
                           ? _dummyMovies.length
                           : popularMovies.length,
@@ -375,14 +375,14 @@ class _MovieSearchScreenState extends State<MovieSearchScreen> {
                     genres.isEmpty ? _skeletonCard(child: header) : header,
                     const SizedBox(height: 12),
                     SizedBox(
-                      height: 320,
+                      height: 250,
                       child: ScrollConfiguration(
                         behavior: _movieScrollBehavior,
                         child: ListView.builder(
                           scrollDirection: Axis.horizontal,
                           physics: const BouncingScrollPhysics(),
                           padding: const EdgeInsets.symmetric(horizontal: 16),
-                          itemExtent: 262,
+                          itemExtent: 154,
                           itemCount: moviesList?.length ?? 0,
                           itemBuilder: (context, itemIndex) {
                             final movie = moviesList![itemIndex];

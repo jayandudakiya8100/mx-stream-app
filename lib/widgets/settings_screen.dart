@@ -1,3 +1,4 @@
+import 'package:Mirarr/functions/navigation_provider.dart';
 import 'package:Mirarr/functions/regionprovider_class.dart';
 import 'package:Mirarr/functions/themeprovider_class.dart';
 import 'package:Mirarr/functions/supabase_provider.dart';
@@ -184,7 +185,14 @@ class _SettingsPageState extends State<SettingsPage> {
         scrolledUnderElevation: 0,
         leading: IconButton(
           icon: Icon(Icons.arrow_back_rounded, color: colorScheme.onSurface),
-          onPressed: () => Navigator.pop(context),
+          onPressed: () {
+            final modalRoute = ModalRoute.of(context);
+            if (modalRoute != null && !modalRoute.isFirst) {
+              Navigator.pop(context);
+            } else {
+              Provider.of<NavigationProvider>(context, listen: false).setIndex(0);
+            }
+          },
         ),
         title: Text(
           'Settings',

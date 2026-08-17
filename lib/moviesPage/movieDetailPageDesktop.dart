@@ -471,75 +471,34 @@ class _MovieDetailPageDesktop extends StatelessWidget {
                                         snapshot.data as List<dynamic>;
 
                                     return SizedBox(
-                                      height: 360,
+                                      height: 250,
                                       child: ListView.builder(
                                         scrollDirection: Axis.horizontal,
                                         physics: const BouncingScrollPhysics(),
-                                        itemExtent: 216,
+                                        padding: const EdgeInsets.symmetric(horizontal: 16),
                                         itemCount: movies.length,
                                         itemBuilder: (context, index) {
                                           final movie = movies[index];
+                                          final movieModel = Movie(
+                                            title: movie['title'] ?? '',
+                                            releaseDate: movie['release_date'] ?? '',
+                                            posterPath: movie['poster_path'] ?? '',
+                                            overView: movie['overview'] ?? '',
+                                            id: movie['id'] ?? 0,
+                                            score: (movie['vote_average'] as num?)?.toDouble() ?? 0.0,
+                                          );
                                           return Padding(
-                                              padding:
-                                                  const EdgeInsets.all(8.0),
-                                              child: Column(
-                                                children: [
-                                                  Card(
-                                                    elevation: 4,
-                                                    child: GestureDetector(
-                                                      onTap: () => state.onTapMovie(
-                                                          movie['title'],
-                                                          movie['id']),
-                                                      child: SizedBox(
-                                                        height: 300,
-                                                        width: 200,
-                                                        child: ClipRRect(
-                                                          borderRadius: BorderRadius.circular(20),
-                                                          child: movie['poster_path'].isNotEmpty
-                                                              ? CachedNetworkImage(
-                                                                  imageUrl: '${getImageBaseUrl(region)}/t/p/w200${movie['poster_path']}',
-                                                                  fit: BoxFit.cover,
-                                                                  placeholder: (context, url) => Skeletonizer(
-                                                                    enabled: true,
-                                                                    containersColor: Colors.white.withOpacity(0.05),
-                                                                    effect: ShimmerEffect(
-                                                                      baseColor: Colors.white.withOpacity(0.05),
-                                                                      highlightColor: Colors.white.withOpacity(0.15),
-                                                                    ),
-                                                                    child: Container(
-                                                                      color: Colors.grey[900],
-                                                                    ),
-                                                                  ),
-                                                                  errorWidget: (context, url, error) => Container(
-                                                                    color: Colors.grey[900],
-                                                                    child: const Icon(Icons.error),
-                                                                  ),
-                                                                )
-                                                              : Container(
-                                                                  color: Colors.grey[900],
-                                                                ),
-                                                        ),
-                                                      ),
-                                                    ),
-                                                  ),
-                                                  SizedBox(
-                                                    width: 140,
-                                                    child: Text(
-                                                      movie['title'],
-                                                      textAlign:
-                                                          TextAlign.center,
-                                                      maxLines: 2,
-                                                      softWrap: true,
-                                                      overflow: TextOverflow
-                                                          .ellipsis,
-                                                      style: const TextStyle(
-                                                        fontSize: 15,
-                                                        color: Colors.white,
-                                                      ),
-                                                    ),
-                                                  ),
-                                                ],
-                                              ));
+                                            padding: const EdgeInsets.only(right: 14),
+                                            child: TvFocusWrapper(
+                                              onTap: () => state.onTapMovie(
+                                                  movieModel.title,
+                                                  movieModel.id),
+                                              child: CustomMovieWidget(
+                                                movie: movieModel,
+                                                showAvailability: false,
+                                              ),
+                                            ),
+                                          );
                                         },
                                       ),
                                     );

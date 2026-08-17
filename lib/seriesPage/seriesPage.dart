@@ -243,14 +243,14 @@ class _SerieSearchScreenState extends State<SerieSearchScreen> {
                 _buildSectionHeader('Trending TV Shows', null),
                 const SizedBox(height: 12),
                 SizedBox(
-                  height: 320,
+                  height: 250,
                   child: ScrollConfiguration(
                     behavior: _seriesScrollBehavior,
                     child: ListView.builder(
                       scrollDirection: Axis.horizontal,
                       physics: const BouncingScrollPhysics(),
                       padding: const EdgeInsets.symmetric(horizontal: 16),
-                      itemExtent: 262,
+                      itemExtent: 154,
                       itemCount: trendingSeries.isEmpty
                           ? _dummySeries.length
                           : trendingSeries.length,
@@ -279,14 +279,14 @@ class _SerieSearchScreenState extends State<SerieSearchScreen> {
                 _buildSectionHeader('Popular TV Shows', null),
                 const SizedBox(height: 12),
                 SizedBox(
-                  height: 320,
+                  height: 250,
                   child: ScrollConfiguration(
                     behavior: _seriesScrollBehavior,
                     child: ListView.builder(
                       scrollDirection: Axis.horizontal,
                       physics: const BouncingScrollPhysics(),
                       padding: const EdgeInsets.symmetric(horizontal: 16),
-                      itemExtent: 262,
+                      itemExtent: 154,
                       itemCount: popularSeries.isEmpty
                           ? _dummySeries.length
                           : popularSeries.length,
@@ -341,14 +341,14 @@ class _SerieSearchScreenState extends State<SerieSearchScreen> {
                     genres.isEmpty ? _skeletonCard(child: header) : header,
                     const SizedBox(height: 12),
                     SizedBox(
-                      height: 320,
+                      height: 250,
                       child: ScrollConfiguration(
                         behavior: _seriesScrollBehavior,
                         child: ListView.builder(
                           scrollDirection: Axis.horizontal,
                           physics: const BouncingScrollPhysics(),
                           padding: const EdgeInsets.symmetric(horizontal: 16),
-                          itemExtent: 262,
+                          itemExtent: 154,
                           itemCount: seriesList?.length ?? 0,
                           itemBuilder: (context, itemIndex) {
                             final serie = seriesList?[itemIndex];

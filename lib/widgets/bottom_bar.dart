@@ -11,7 +11,7 @@ class BottomBar extends StatelessWidget {
   static double getHeight(BuildContext context) {
     if (TvFocusModeManager.isTvDevice) return 0.0;
     final double bottomPadding = MediaQuery.paddingOf(context).bottom;
-    return 72.0 + (bottomPadding > 0 ? bottomPadding : 16.0);
+    return 60.0 + (bottomPadding > 0 ? bottomPadding : 16.0);
   }
 
   @override
@@ -26,40 +26,44 @@ class BottomBar extends StatelessWidget {
         focusNode: TvFocusModeManager.bottomBarFocusNode,
         canRequestFocus: false,
         child: BottomNavigationBar(
+          showSelectedLabels: false,
+          showUnselectedLabels: false,
           selectedItemColor: colorScheme.primary,
           selectedIconTheme: IconThemeData(color: colorScheme.primary),
-          selectedFontSize: 16,
           unselectedItemColor: colorScheme.onSurfaceVariant,
           currentIndex: navProvider.currentIndex,
           onTap: (int index) {
             navProvider.setIndex(index);
-            Navigator.popUntil(context, (route) => route.isFirst);
+            final modalRoute = ModalRoute.of(context);
+            if (modalRoute != null && !modalRoute.isFirst) {
+              Navigator.popUntil(context, (route) => route.isFirst);
+            }
           },
           items: const [
             BottomNavigationBarItem(
-              icon: Icon(Icons.movie_outlined),
-              activeIcon: Icon(Icons.movie),
-              label: 'Movies',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.tv_outlined),
-              activeIcon: Icon(Icons.tv),
-              label: 'Series',
+              icon: Icon(Icons.home_outlined),
+              activeIcon: Icon(Icons.home_rounded),
+              label: '',
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.search_outlined),
-              activeIcon: Icon(Icons.search),
-              label: 'Search',
+              activeIcon: Icon(Icons.search_rounded),
+              label: '',
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.video_library_outlined),
-              activeIcon: Icon(Icons.video_library),
-              label: 'Shelf',
+              icon: Icon(Icons.folder_outlined),
+              activeIcon: Icon(Icons.folder_rounded),
+              label: '',
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.person_outline),
-              activeIcon: Icon(Icons.person),
-              label: 'Account',
+              icon: Icon(Icons.file_download_outlined),
+              activeIcon: Icon(Icons.download_rounded),
+              label: '',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.settings_outlined),
+              activeIcon: Icon(Icons.settings_rounded),
+              label: '',
             ),
           ],
         ),
@@ -69,11 +73,11 @@ class BottomBar extends StatelessWidget {
     final double bottomPadding = MediaQuery.paddingOf(context).bottom;
 
     final items = const [
-      _NavItemData(activeIcon: Icons.movie, inactiveIcon: Icons.movie_outlined, label: 'Movies'),
-      _NavItemData(activeIcon: Icons.tv, inactiveIcon: Icons.tv_outlined, label: 'Series'),
-      _NavItemData(activeIcon: Icons.search, inactiveIcon: Icons.search_outlined, label: 'Search'),
-      _NavItemData(activeIcon: Icons.video_library, inactiveIcon: Icons.video_library_outlined, label: 'Shelf'),
-      _NavItemData(activeIcon: Icons.person, inactiveIcon: Icons.person_outline, label: 'Account'),
+      _NavItemData(activeIcon: Icons.home_rounded, inactiveIcon: Icons.home_outlined),
+      _NavItemData(activeIcon: Icons.search_rounded, inactiveIcon: Icons.search_outlined),
+      _NavItemData(activeIcon: Icons.folder_rounded, inactiveIcon: Icons.folder_outlined),
+      _NavItemData(activeIcon: Icons.download_rounded, inactiveIcon: Icons.file_download_outlined),
+      _NavItemData(activeIcon: Icons.settings_rounded, inactiveIcon: Icons.settings_outlined),
     ];
 
     return Center(
@@ -98,7 +102,7 @@ class BottomBar extends StatelessWidget {
               ],
             ),
             child: SizedBox(
-              height: 66,
+              height: 56,
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 8.0),
                 child: Row(
@@ -134,56 +138,42 @@ class BottomBar extends StatelessWidget {
     return ExpressiveInteractiveContainer(
       onTap: () {
         navProvider.setIndex(index);
-        Navigator.popUntil(context, (route) => route.isFirst);
+        final modalRoute = ModalRoute.of(context);
+        if (modalRoute != null && !modalRoute.isFirst) {
+          Navigator.popUntil(context, (route) => route.isFirst);
+        }
       },
       borderRadius: 24,
       pressedBorderRadius: 28,
       speed: ExpressiveSpeed.fast,
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          AnimatedContainer(
-            duration: ExpressiveSpeed.fast.duration,
-            curve: ExpressiveMotion.spatialFast,
-            width: isSelected ? 52 : 38,
-            height: 32,
-            decoration: BoxDecoration(
-              color: isSelected
-                  ? colorScheme.primaryContainer
-                  : Colors.transparent,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Center(
-              child: AnimatedSwitcher(
-                duration: ExpressiveSpeed.fast.duration,
-                transitionBuilder: (child, anim) => ScaleTransition(scale: anim, child: child),
-                child: Icon(
-                  isSelected ? itemData.activeIcon : itemData.inactiveIcon,
-                  key: ValueKey(isSelected),
-                  color: isSelected
-                      ? colorScheme.onPrimaryContainer
-                      : colorScheme.onSurfaceVariant,
-                  size: 22,
-                ),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      child: Center(
+        child: AnimatedContainer(
+          duration: ExpressiveSpeed.fast.duration,
+          curve: ExpressiveMotion.spatialFast,
+          width: isSelected ? 56 : 42,
+          height: 36,
+          decoration: BoxDecoration(
+            color: isSelected
+                ? colorScheme.primaryContainer
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Center(
+            child: AnimatedSwitcher(
+              duration: ExpressiveSpeed.fast.duration,
+              transitionBuilder: (child, anim) => ScaleTransition(scale: anim, child: child),
+              child: Icon(
+                isSelected ? itemData.activeIcon : itemData.inactiveIcon,
+                key: ValueKey(isSelected),
+                color: isSelected
+                    ? colorScheme.onPrimaryContainer
+                    : colorScheme.onSurfaceVariant,
+                size: 24,
               ),
             ),
           ),
-          const SizedBox(height: 2),
-          AnimatedDefaultTextStyle(
-            duration: ExpressiveSpeed.fast.duration,
-            style: TextStyle(
-              color: isSelected
-                  ? colorScheme.primary
-                  : colorScheme.onSurfaceVariant,
-              fontSize: 10,
-              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-              letterSpacing: 0.2,
-            ),
-            child: Text(itemData.label),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -192,12 +182,10 @@ class BottomBar extends StatelessWidget {
 class _NavItemData {
   final IconData activeIcon;
   final IconData inactiveIcon;
-  final String label;
 
   const _NavItemData({
     required this.activeIcon,
     required this.inactiveIcon,
-    required this.label,
   });
 }
 

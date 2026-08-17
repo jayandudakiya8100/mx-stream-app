@@ -52,33 +52,25 @@ class _CastCrewCardState extends State<CastCrewCard> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    final double width = widget.isDesktop ? 120.0 : 90.0;
-    final double height = widget.isDesktop ? 190.0 : 145.0;
-    final double imageHeight = widget.isDesktop ? 120.0 : 90.0;
-    final double borderRadius = widget.isDesktop ? 16.0 : 14.0;
-
     final String name = widget.item['name'] ?? '';
     final String subtitle = widget.isCast
         ? (widget.item['character'] ?? '')
         : (widget.item['job'] ?? '');
     final int id = widget.item['id'] ?? 0;
     final String? profilePath = widget.item['profile_path'];
-
-    final outerPadding = widget.isDesktop
-        ? const EdgeInsets.fromLTRB(16, 12, 0, 12)
-        : const EdgeInsets.fromLTRB(10, 8, 0, 8);
+    final double avatarRadius = widget.isDesktop ? 36.0 : 32.0;
 
     return Padding(
-      padding: outerPadding,
+      padding: const EdgeInsets.only(right: 14),
       child: MouseRegion(
         onEnter: (_) => setState(() => _isHovered = true),
         onExit: (_) => setState(() => _isHovered = false),
         child: AnimatedScale(
-          scale: _isHovered ? 1.04 : 1.0,
+          scale: _isHovered ? 1.05 : 1.0,
           duration: const Duration(milliseconds: 200),
           curve: Curves.easeOutCubic,
           child: TvFocusWrapper(
-            borderRadius: borderRadius,
+            borderRadius: 36.0,
             onTap: () {
               if (widget.isCast) {
                 onTapCast(context, id);
@@ -86,95 +78,84 @@ class _CastCrewCardState extends State<CastCrewCard> {
                 onTapCrew(context, id);
               }
             },
-            child: Container(
-              width: width,
-              height: height,
-              decoration: BoxDecoration(
-                color: _isHovered
-                    ? colorScheme.surfaceContainerHighest
-                    : colorScheme.surfaceContainerHigh,
-                borderRadius: BorderRadius.circular(borderRadius),
-                border: Border.all(
-                  color: _isHovered
-                      ? colorScheme.primary.withValues(alpha: 0.5)
-                      : colorScheme.outlineVariant.withValues(alpha: 0.2),
-                  width: 1.0,
-                ),
-                boxShadow: _isHovered
-                    ? [
-                        BoxShadow(
-                          color: colorScheme.primary.withValues(alpha: 0.15),
-                          blurRadius: 10,
-                          offset: const Offset(0, 4),
-                        )
-                      ]
-                    : [],
-              ),
+            child: SizedBox(
+              width: 78,
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.vertical(
-                      top: Radius.circular(borderRadius - 1.0),
+                  // Circular Portrait Avatar
+                  Container(
+                    width: avatarRadius * 2,
+                    height: avatarRadius * 2,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: _isHovered
+                            ? colorScheme.primary
+                            : colorScheme.outlineVariant.withValues(alpha: 0.25),
+                        width: 1.5,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.3),
+                          blurRadius: 6,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
                     ),
-                    child: SizedBox(
-                      height: imageHeight,
-                      width: double.infinity,
-                      child: profilePath != null
+                    child: ClipOval(
+                      child: profilePath != null && profilePath.isNotEmpty
                           ? CachedNetworkImage(
-                              imageUrl: '${getImageBaseUrl(widget.region)}/t/p/${widget.isDesktop ? 'w185' : 'w185'}$profilePath',
-                              memCacheWidth: widget.isDesktop ? 185 : 135,
+                              imageUrl:
+                                  '${getImageBaseUrl(widget.region)}/t/p/w185$profilePath',
+                              memCacheWidth: 185,
                               fit: BoxFit.cover,
-                              placeholder: (context, url) => Skeletonizer(
-                                enabled: true,
-                                child: Container(color: colorScheme.surfaceContainerLow),
+                              placeholder: (context, url) => Container(
+                                color: colorScheme.surfaceContainerHigh,
                               ),
                               errorWidget: (context, url, error) => Container(
-                                color: colorScheme.surfaceContainerLow,
-                                child: Icon(Icons.person_rounded, color: colorScheme.onSurfaceVariant),
+                                color: colorScheme.surfaceContainerHigh,
+                                child: Icon(Icons.person_rounded,
+                                    color: colorScheme.onSurfaceVariant, size: 28),
                               ),
                             )
                           : Container(
-                              color: colorScheme.surfaceContainerLow,
-                              child: Image.asset(
-                                'assets/images/person.png',
-                                fit: BoxFit.cover,
-                              ),
+                              color: colorScheme.surfaceContainerHigh,
+                              child: Icon(Icons.person_rounded,
+                                  color: colorScheme.onSurfaceVariant, size: 28),
                             ),
                     ),
                   ),
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.all(6),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.labelMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: colorScheme.onSurface,
-                            ),
-                          ),
-                          if (subtitle.isNotEmpty) ...[
-                            const SizedBox(height: 2),
-                            Text(
-                              subtitle,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                fontSize: 9.5,
-                                color: colorScheme.onSurfaceVariant,
-                              ),
-                            ),
-                          ],
-                        ],
+                  const SizedBox(height: 6),
+                  // Actor Name
+                  Text(
+                    name,
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: colorScheme.onSurface,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 11,
+                      height: 1.15,
+                    ),
+                  ),
+                  if (subtitle.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    // Character / Job
+                    Text(
+                      subtitle,
+                      textAlign: TextAlign.center,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: colorScheme.onSurfaceVariant.withValues(alpha: 0.8),
+                        fontSize: 10,
+                        height: 1.15,
                       ),
                     ),
-                  ),
+                  ],
                 ],
               ),
             ),
@@ -186,32 +167,35 @@ class _CastCrewCardState extends State<CastCrewCard> {
 }
 
 Widget buildCastCrewSkeletonRow({required bool isDesktop}) {
-  final double height = isDesktop ? 215.0 : 165.0;
-  final double cardWidth = isDesktop ? 120.0 : 90.0;
-  final double cardHeight = isDesktop ? 190.0 : 145.0;
-  final double borderRadius = isDesktop ? 16.0 : 14.0;
-  final outerPadding = isDesktop
-      ? const EdgeInsets.fromLTRB(16, 12, 0, 12)
-      : const EdgeInsets.fromLTRB(10, 8, 0, 8);
-
   return SizedBox(
-    height: height,
+    height: 135.0,
     child: Skeletonizer(
       enabled: true,
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
         itemCount: 6,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
         physics: const NeverScrollableScrollPhysics(),
         itemBuilder: (context, index) {
           return Padding(
-            padding: outerPadding,
-            child: Container(
-              width: cardWidth,
-              height: cardHeight,
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surfaceContainerHigh,
-                borderRadius: BorderRadius.circular(borderRadius),
-              ),
+            padding: const EdgeInsets.only(right: 14),
+            child: Column(
+              children: [
+                Container(
+                  width: 64,
+                  height: 64,
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white10,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Container(
+                  width: 50,
+                  height: 10,
+                  color: Colors.white10,
+                ),
+              ],
             ),
           );
         },
@@ -223,11 +207,11 @@ Widget buildCastCrewSkeletonRow({required bool isDesktop}) {
 Widget buildCastRow(List<Map<String, dynamic>> castList, BuildContext context) {
   final region = Provider.of<RegionProvider>(context, listen: false).currentRegion;
   return SizedBox(
-    height: 165.0,
+    height: 135.0,
     child: ListView.builder(
       scrollDirection: Axis.horizontal,
       physics: const BouncingScrollPhysics(),
-      itemExtent: 100,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
       itemCount: castList.length,
       itemBuilder: (context, index) {
         return CastCrewCard(
@@ -244,11 +228,11 @@ Widget buildCastRow(List<Map<String, dynamic>> castList, BuildContext context) {
 Widget buildCrewRow(List<Map<String, dynamic>> crewList, BuildContext context) {
   final region = Provider.of<RegionProvider>(context, listen: false).currentRegion;
   return SizedBox(
-    height: 165.0,
+    height: 135.0,
     child: ListView.builder(
       scrollDirection: Axis.horizontal,
       physics: const BouncingScrollPhysics(),
-      itemExtent: 100,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
       itemCount: crewList.length,
       itemBuilder: (context, index) {
         return CastCrewCard(
@@ -265,11 +249,11 @@ Widget buildCrewRow(List<Map<String, dynamic>> crewList, BuildContext context) {
 Widget buildCrewRowDesktop(List<Map<String, dynamic>> crewList, BuildContext context) {
   final region = Provider.of<RegionProvider>(context, listen: false).currentRegion;
   return SizedBox(
-    height: 215.0,
+    height: 150.0,
     child: ListView.builder(
       scrollDirection: Axis.horizontal,
       physics: const BouncingScrollPhysics(),
-      itemExtent: 136,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
       itemCount: crewList.length,
       itemBuilder: (context, index) {
         return CastCrewCard(
@@ -286,11 +270,11 @@ Widget buildCrewRowDesktop(List<Map<String, dynamic>> crewList, BuildContext con
 Widget buildCastRowDesktop(List<Map<String, dynamic>> castList, BuildContext context) {
   final region = Provider.of<RegionProvider>(context, listen: false).currentRegion;
   return SizedBox(
-    height: 215.0,
+    height: 150.0,
     child: ListView.builder(
       scrollDirection: Axis.horizontal,
       physics: const BouncingScrollPhysics(),
-      itemExtent: 136,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
       itemCount: castList.length,
       itemBuilder: (context, index) {
         return CastCrewCard(
@@ -303,4 +287,3 @@ Widget buildCastRowDesktop(List<Map<String, dynamic>> castList, BuildContext con
     ),
   );
 }
-

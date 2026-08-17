@@ -7,116 +7,103 @@ import 'package:provider/provider.dart';
 
 class CustomSeriesWidget extends StatelessWidget {
   final Serie serie;
+  final double width;
+  final double height;
 
-  const CustomSeriesWidget({super.key, required this.serie});
+  const CustomSeriesWidget({
+    super.key,
+    required this.serie,
+    this.width = 140,
+    this.height = 195,
+  });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final region = Provider.of<RegionProvider>(context, listen: false).currentRegion;
+    final imageBase = getImageBaseUrl(region);
 
-    return Container(
-      height: 500,
-      width: 250,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(28),
-        color: colorScheme.surfaceContainerHigh,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.2),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(28),
-        child: Stack(
-          children: [
-            if (serie.posterPath.isNotEmpty)
-              Positioned.fill(
-                child: CachedNetworkImage(
-                  imageUrl: '${getImageBaseUrl(region)}/t/p/w342${serie.posterPath}',
-                  memCacheWidth: 350,
-                  fit: BoxFit.cover,
-                  placeholder: (context, url) => Container(color: colorScheme.surfaceContainerHigh),
-                  errorWidget: (context, url, error) => Container(
-                    color: colorScheme.surfaceContainerHigh,
-                    child: Icon(Icons.tv, size: 48, color: colorScheme.onSurfaceVariant),
-                  ),
-                ),
-              ),
-            Positioned.fill(
-              child: DecoratedBox(
+    final imageUrl = serie.posterPath.startsWith('http')
+        ? serie.posterPath
+        : '$imageBase/t/p/w342${serie.posterPath}';
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final double cardWidth = constraints.maxWidth.isFinite && constraints.maxWidth > 0
+            ? constraints.maxWidth
+            : width;
+        final double cardHeight = constraints.maxHeight.isFinite && constraints.maxHeight > 0
+            ? (constraints.maxHeight - 44).clamp(60.0, 400.0)
+            : height;
+
+        return SizedBox(
+          width: cardWidth,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Rounded Poster Image
+              Container(
+                height: cardHeight,
+                width: cardWidth,
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.bottomCenter,
-                    end: Alignment.topCenter,
-                    colors: [
-                      Colors.black.withValues(alpha: 0.9),
-                      Colors.black.withValues(alpha: 0.3),
-                      Colors.transparent,
-                    ],
-                    stops: const [0.0, 0.5, 1.0],
-                  ),
-                ),
-              ),
-            ),
-            // Rating Badge Pill
-            if (serie.score != null && serie.score! > 0)
-              Positioned(
-                top: 12,
-                left: 12,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: colorScheme.surface.withValues(alpha: 0.85),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: colorScheme.outlineVariant.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(16),
+                  color: colorScheme.surfaceContainerHigh,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
                     ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.star_rounded, size: 16, color: Colors.amber),
-                      const SizedBox(width: 4),
-                      Text(
-                        serie.score!.toStringAsFixed(1),
-                        style: theme.textTheme.labelMedium?.copyWith(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: serie.posterPath.isNotEmpty
+                      ? CachedNetworkImage(
+                          imageUrl: imageUrl,
+                          memCacheWidth: 320,
+                          fit: BoxFit.cover,
+                          placeholder: (context, url) => Container(
+                            color: colorScheme.surfaceContainerHigh,
+                          ),
+                          errorWidget: (context, url, error) => Container(
+                            color: colorScheme.surfaceContainerHigh,
+                            child: Icon(
+                              Icons.tv_outlined,
+                              size: 36,
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        )
+                      : Container(
+                          color: colorScheme.surfaceContainerHigh,
+                          child: Icon(
+                            Icons.tv_outlined,
+                            size: 36,
+                            color: colorScheme.onSurfaceVariant,
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
                 ),
               ),
-            Positioned(
-              left: 16,
-              right: 16,
-              bottom: 16,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    serie.name,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      height: 1.2,
-                    ),
-                  ),
-                ],
+              const SizedBox(height: 8),
+              // Title Text Underneath Poster
+              Text(
+                serie.name,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: colorScheme.onSurface,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                  height: 1.25,
+                ),
               ),
-            ),
-          ],
-        ),
-      ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

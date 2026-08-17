@@ -12,6 +12,8 @@ class CustomMovieWidget extends StatefulWidget {
   final bool showAvailability;
   final bool isWatched;
   final ValueListenable<Set<int>>? watchedMovieIds;
+  final double width;
+  final double height;
 
   const CustomMovieWidget({
     super.key,
@@ -19,6 +21,8 @@ class CustomMovieWidget extends StatefulWidget {
     this.showAvailability = true,
     this.isWatched = false,
     this.watchedMovieIds,
+    this.width = 140,
+    this.height = 195,
   });
 
   @override
@@ -40,8 +44,7 @@ class _CustomMovieWidgetState extends State<CustomMovieWidget> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final region =
-        Provider.of<RegionProvider>(context).currentRegion;
+    final region = Provider.of<RegionProvider>(context).currentRegion;
     if (_region != region) {
       _region = region;
       _resolveAvailability(region);
@@ -77,198 +80,145 @@ class _CustomMovieWidgetState extends State<CustomMovieWidget> {
     final colorScheme = theme.colorScheme;
     final region = _region ??
         Provider.of<RegionProvider>(context, listen: false).currentRegion;
+    final imageBase = getImageBaseUrl(region);
 
-    return Container(
-      height: 500,
-      width: 250,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(28),
-        color: colorScheme.surfaceContainerHigh,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.2),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(28),
-        child: Stack(
-          children: [
-            if (widget.movie.posterPath.isNotEmpty)
-              Positioned.fill(
-                child: CachedNetworkImage(
-                  imageUrl:
-                      '${getImageBaseUrl(region)}/t/p/w342${widget.movie.posterPath}',
-                  memCacheWidth: 350,
-                  fit: BoxFit.cover,
-                  color: isWatched
-                      ? Colors.black.withValues(alpha: 0.4)
-                      : null,
-                  colorBlendMode: isWatched ? BlendMode.darken : null,
-                  placeholder: (context, url) =>
-                      Container(color: colorScheme.surfaceContainerHigh),
-                  errorWidget: (context, url, error) => Container(
-                    color: colorScheme.surfaceContainerHigh,
-                    child: Icon(Icons.movie,
-                        size: 48, color: colorScheme.onSurfaceVariant),
-                  ),
-                ),
-              ),
-            Positioned.fill(
-              child: DecoratedBox(
+    final imageUrl = widget.movie.posterPath.startsWith('http')
+        ? widget.movie.posterPath
+        : '$imageBase/t/p/w342${widget.movie.posterPath}';
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final double cardWidth = constraints.maxWidth.isFinite && constraints.maxWidth > 0
+            ? constraints.maxWidth
+            : widget.width;
+        final double cardHeight = constraints.maxHeight.isFinite && constraints.maxHeight > 0
+            ? (constraints.maxHeight - 44).clamp(60.0, 400.0)
+            : widget.height;
+
+        return SizedBox(
+          width: cardWidth,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Rounded Poster Image
+              Container(
+                height: cardHeight,
+                width: cardWidth,
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.bottomCenter,
-                    end: Alignment.topCenter,
-                    colors: [
-                      Colors.black.withValues(alpha: 0.9),
-                      Colors.black.withValues(alpha: 0.3),
-                      Colors.transparent,
-                    ],
-                    stops: const [0.0, 0.5, 1.0],
-                  ),
-                ),
-              ),
-            ),
-            // Rating Badge Pill
-            if (widget.movie.score != null && widget.movie.score! > 0)
-              Positioned(
-                top: 12,
-                left: 12,
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: colorScheme.surface.withValues(alpha: 0.85),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color:
-                          colorScheme.outlineVariant.withValues(alpha: 0.2),
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.star_rounded,
-                          size: 16, color: Colors.amber),
-                      const SizedBox(width: 4),
-                      Text(
-                        widget.movie.score!.toStringAsFixed(1),
-                        style: theme.textTheme.labelMedium?.copyWith(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            // Watched Badge
-            if (isWatched)
-              Positioned(
-                top: 12,
-                right: widget.showAvailability ? 54 : 12,
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: Colors.green.withValues(alpha: 0.85),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.check_circle_rounded,
-                          color: Colors.white, size: 14),
-                      SizedBox(width: 4),
-                      Text(
-                        'WATCHED',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            // Availability Icon
-            if (widget.showAvailability && _availabilityFuture != null)
-              Positioned(
-                top: 12,
-                right: 12,
-                child: Container(
-                  padding: const EdgeInsets.all(6),
-                  decoration: BoxDecoration(
-                    color: colorScheme.surface.withValues(alpha: 0.85),
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color:
-                          colorScheme.outlineVariant.withValues(alpha: 0.2),
-                    ),
-                  ),
-                  child: FutureBuilder<bool>(
-                    future: _availabilityFuture,
-                    builder: (context, snapshot) {
-                      if (snapshot.connectionState ==
-                          ConnectionState.waiting) {
-                        return const SizedBox(
-                          height: 16,
-                          width: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        );
-                      }
-                      return Icon(
-                        snapshot.data == true
-                            ? Icons.download_rounded
-                            : Icons.cloud_off_rounded,
-                        size: 18,
-                        color: snapshot.data == true
-                            ? colorScheme.primary
-                            : colorScheme.onSurfaceVariant,
-                      );
-                    },
-                  ),
-                ),
-              ),
-            // Details
-            Positioned(
-              left: 16,
-              right: 16,
-              bottom: 16,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    widget.movie.title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      height: 1.2,
-                    ),
-                  ),
-                  if (widget.movie.releaseDate.isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      widget.movie.releaseDate,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: Colors.white70,
-                      ),
+                  borderRadius: BorderRadius.circular(16),
+                  color: colorScheme.surfaceContainerHigh,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
                     ),
                   ],
-                ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      if (widget.movie.posterPath.isNotEmpty)
+                        CachedNetworkImage(
+                          imageUrl: imageUrl,
+                          memCacheWidth: 320,
+                          fit: BoxFit.cover,
+                          color: isWatched
+                              ? Colors.black.withValues(alpha: 0.4)
+                              : null,
+                          colorBlendMode: isWatched ? BlendMode.darken : null,
+                          placeholder: (context, url) => Container(
+                            color: colorScheme.surfaceContainerHigh,
+                          ),
+                          errorWidget: (context, url, error) => Container(
+                            color: colorScheme.surfaceContainerHigh,
+                            child: Icon(
+                              Icons.movie_outlined,
+                              size: 36,
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        )
+                      else
+                        Container(
+                          color: colorScheme.surfaceContainerHigh,
+                          child: Icon(
+                            Icons.movie_outlined,
+                            size: 36,
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+
+                      // Watched Badge (Top Right)
+                      if (isWatched)
+                        Positioned(
+                          top: 8,
+                          right: 8,
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: Colors.green.withValues(alpha: 0.9),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.check_rounded,
+                              color: Colors.white,
+                              size: 12,
+                            ),
+                          ),
+                        ),
+
+                      // Availability Icon (Top Right, if not watched)
+                      if (!isWatched && widget.showAvailability && _availabilityFuture != null)
+                        Positioned(
+                          top: 8,
+                          right: 8,
+                          child: FutureBuilder<bool>(
+                            future: _availabilityFuture,
+                            builder: (context, snapshot) {
+                              if (snapshot.connectionState == ConnectionState.waiting ||
+                                  snapshot.data != true) {
+                                return const SizedBox.shrink();
+                              }
+                              return Container(
+                                padding: const EdgeInsets.all(4),
+                                decoration: BoxDecoration(
+                                  color: colorScheme.surface.withValues(alpha: 0.85),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(
+                                  Icons.download_rounded,
+                                  size: 14,
+                                  color: colorScheme.primary,
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
               ),
-            ),
-          ],
-        ),
-      ),
+              const SizedBox(height: 8),
+              // Title Text Underneath Poster
+              Text(
+                widget.movie.title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: colorScheme.onSurface,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                  height: 1.25,
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
