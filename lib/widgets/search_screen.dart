@@ -7,7 +7,8 @@ import 'package:skeletonizer/skeletonizer.dart';
 
 import 'package:Mirarr/functions/fetchers/providers/global_provider_search_service.dart';
 import 'package:Mirarr/functions/fetchers/providers/media_provider_service.dart';
-import 'package:Mirarr/functions/fetchers/providers/vega_movies_provider.dart';
+import 'package:Mirarr/functions/fetchers/providers/core/models.dart';
+import 'package:Mirarr/functions/fetchers/providers/provider_config.dart';
 import 'package:Mirarr/homePage/widgets/provider_media_detail_page.dart';
 import 'package:Mirarr/moviesPage/UI/gridview_forlists_movies.dart';
 import 'package:Mirarr/moviesPage/models/movie.dart';
@@ -53,14 +54,13 @@ class _SearchScreenState extends State<SearchScreen> {
   List<MediaProviderItem> _availableProviders = [];
 
   // Dummy cards for skeletonizer state
-  final List<VegaMediaItem> _dummyItems = List.generate(
+  final List<ProviderSearchItem> _dummyItems = List.generate(
     5,
-    (index) => VegaMediaItem(
+    (index) => ProviderSearchItem(
       title: 'Loading Movie Title Placeholder',
-      posterPath: '',
-      permalink: '',
-      id: index,
-      score: 8.0,
+      poster: '',
+      url: '',
+      type: 'movie',
     ),
   );
 
@@ -190,28 +190,44 @@ class _SearchScreenState extends State<SearchScreen> {
     );
   }
 
-  void _onTapMediaCard(VegaMediaItem item, String providerName) {
+  void _onTapMediaCard(ProviderSearchItem item, String providerName) {
     Navigator.push(
       context,
       ExpressivePageRoute(
         page: ProviderMediaDetailPage(
           title: item.title,
-          posterPath: item.posterPath,
-          permalink: item.permalink,
+          posterPath: item.poster,
+          permalink: item.url,
           providerName: providerName,
         ),
       ),
     );
   }
 
-  void _openProviderGrid(String providerName, List<VegaMediaItem> items) {
+  void _openProviderGrid(String providerName, List<ProviderSearchItem> items) {
     if (items.isEmpty) return;
     Navigator.push(
       context,
       ExpressivePageRoute(
         page: ListGridViewMovies(
-          movieList: items.map((e) => e.toMovie()).toList(),
+          movieList: items.map((e) => Movie(
+            title: e.title,
+            releaseDate: '',
+            posterPath: e.poster,
+            backdropPath: e.poster,
+            overView: '',
+            id: ProviderConfig.getStableMediaId(e.url),
+            score: 7.5,
+          )).toList(),
           title: providerName,
+          onTapMovieCard: (movie) {
+            // Re-find the original item to pass to details
+            final originalItem = items.firstWhere(
+              (element) => element.title == movie.title, 
+              orElse: () => items.first
+            );
+            _onTapMediaCard(originalItem, providerName);
+          },
         ),
       ),
     );
@@ -598,7 +614,7 @@ class _SearchScreenState extends State<SearchScreen> {
   // --- Individual Provider Horizontal Section ---
   Widget _buildProviderSection({
     required String providerName,
-    required List<VegaMediaItem> items,
+    required List<ProviderSearchItem> items,
     bool isLoading = false,
   }) {
     return Column(
@@ -672,7 +688,7 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   // --- Single Movie Card Matching CloudStream Design ---
-  Widget _buildMovieCard(VegaMediaItem item, String providerName) {
+  Widget _buildMovieCard(ProviderSearchItem item, String providerName) {
     return ExpressiveInteractiveContainer(
       onTap: () => _onTapMediaCard(item, providerName),
       child: SizedBox(
@@ -689,9 +705,9 @@ class _SearchScreenState extends State<SearchScreen> {
                     height: 170,
                     width: 120,
                     color: const Color(0xFF222222),
-                    child: item.posterPath.isNotEmpty
+                    child: item.poster.isNotEmpty
                         ? CachedNetworkImage(
-                            imageUrl: item.posterPath,
+                            imageUrl: item.poster,
                             fit: BoxFit.cover,
                             fadeInDuration: const Duration(milliseconds: 200),
                             errorWidget: (ctx, _, __) => const Center(
@@ -703,36 +719,26 @@ class _SearchScreenState extends State<SearchScreen> {
                           ),
                   ),
 
-                  // Rating or Season Badge
-                  if (item.episodeBadge != null || item.score > 0)
-                    Positioned(
-                      top: 6,
-                      right: 6,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.75),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              item.episodeBadge ?? '${item.score.toStringAsFixed(1)}',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 10,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            if (item.episodeBadge == null) ...[
-                              const SizedBox(width: 2),
-                              const Icon(Icons.star, color: Colors.amber, size: 9),
-                            ],
-                          ],
+                  // Type Badge
+                  Positioned(
+                    top: 6,
+                    right: 6,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.75),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        item.type.toUpperCase(),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
                     ),
+                  ),
                 ],
               ),
             ),

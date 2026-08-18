@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:Mirarr/player/video_player_screen.dart';
+import 'package:Mirarr/player/temp_player_sheet.dart';
 import 'package:Mirarr/widgets/bottom_bar.dart';
 import 'package:Mirarr/widgets/tv_focus_wrapper.dart';
 
@@ -76,15 +76,11 @@ class _DownloadsPageState extends State<DownloadsPage> {
               final referer = _refererController.text.trim();
               if (url.isNotEmpty) {
                 Navigator.pop(ctx);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => VideoPlayerScreen(
-                      streamUrl: url,
-                      title: 'Network Stream',
-                      headers: referer.isNotEmpty ? {'Referer': referer} : null,
-                    ),
-                  ),
+                TempPlayerSheet.show(
+                  context: context,
+                  streamUrl: url,
+                  title: 'Network Stream',
+                  headers: referer.isNotEmpty ? {'Referer': referer} : null,
                 );
               }
             },

@@ -35,14 +35,7 @@ class MediaProviderService {
   static const String _cachedProvidersKey = 'cached_media_providers';
 
   /// Initial minimal fallback providers before network load
-  static List<MediaProviderItem> get defaultProviders => [
-        const MediaProviderItem(id: 'none', name: 'None'),
-        const MediaProviderItem(id: 'random', name: 'Random'),
-        const MediaProviderItem(
-          id: 'vegamovies',
-          name: 'VegaMovies',
-        ),
-      ];
+  static List<MediaProviderItem> get defaultProviders => [];
 
   /// Get provider URL dynamically from cache or resolver
   static Future<String> getProviderUrl(String providerName) =>
@@ -70,7 +63,7 @@ class MediaProviderService {
           : await Hive.openBox(_sessionBoxName);
       await box.put(_providerKey, providerName);
     } catch (e) {
-      debugPrint('Error saving selected provider: $e');
+      // ignore error
     }
   }
 
@@ -78,72 +71,33 @@ class MediaProviderService {
   static String _formatDisplayName(String key) {
     if (key.isEmpty) return key;
     final lower = key.toLowerCase();
-    const knownNames = {
-      'vegamovies': 'VegaMovies',
-      'bollyflix': 'BollyFlix',
-      'moviesdrive': 'MoviesDrive',
-      'moviesmod': 'Moviesmod',
-      'uhdmovies': 'UHDMovies',
-      '4khdhub': '4kHDHub',
-      'hdmovie2': 'HDMovie2',
-      'movies4u': 'Movies4U',
-      'rogmovies': 'RogMovies',
-      'multimovies': 'MultiMovies',
-      'nfmirror': 'NFMirror',
-      'skymovies': 'SkyMovies',
-      'topmovies': 'TopMovies',
-      'gdflix': 'GDFlix',
-      'hubcloud': 'HubCloud',
-      'toonstream': 'ToonStream',
-      'zinkmovies': 'ZinkMovies',
-      'vcloud': 'VCloud',
-      'dudefilms': 'DudeFilms',
-      'm4ufree': 'M4UFree',
-      'animedao': 'AnimeDao',
-      'mlsbd': 'MLSBD',
-      'fibwatch': 'FibWatch',
-      'hindmoviez': 'HindMoviez',
-      'rtally': 'RTally',
-    };
+    const knownNames = <String, String>{};
     if (knownNames.containsKey(lower)) {
       return knownNames[lower]!;
     }
     return key[0].toUpperCase() + key.substring(1);
   }
 
-  /// Fetch providers dynamically strictly from urls.json
+  /// Fetch installed providers dynamically from Hive
   static Future<List<MediaProviderItem>> fetchProviders() async {
-    List<MediaProviderItem> list = _loadCachedProviders();
-    if (list.isEmpty) {
-      list = List.from(defaultProviders);
-    }
-
+    return _loadCachedProviders();
+  }
+  
+  /// Install a new provider from the repository
+  static Future<void> installProvider(String id, String name, String url) async {
     try {
-      final Map<String, MediaProviderItem> providerMap = {};
-      providerMap['none'] = const MediaProviderItem(id: 'none', name: 'None');
-      providerMap['random'] = const MediaProviderItem(id: 'random', name: 'Random');
-
-      // Fetch dynamic providers strictly from urls.json
-      final urls = await ProviderConfig.fetchDynamicUrls();
-      for (final entry in urls.entries) {
-        final key = entry.key;
-        providerMap[key] = MediaProviderItem(
-          id: key,
-          name: _formatDisplayName(key),
-          url: entry.value,
-        );
+      if (!Hive.isBoxOpen(_sessionBoxName)) {
+        await Hive.openBox(_sessionBoxName);
       }
-
-      if (providerMap.length > 2) {
-        final result = providerMap.values.toList();
-        _cacheProviders(result);
-        return result;
+      List<MediaProviderItem> installed = _loadCachedProviders();
+      // Check if already installed
+      if (!installed.any((p) => p.id == id)) {
+        installed.add(MediaProviderItem(id: id, name: name, url: url));
+        _cacheProviders(installed);
       }
     } catch (e) {
-      debugPrint('Error fetching dynamic providers from urls.json: $e');
+      debugPrint('Failed to install provider: $e');
     }
-
-    return list;
   }
 
   static List<MediaProviderItem> _loadCachedProviders() {

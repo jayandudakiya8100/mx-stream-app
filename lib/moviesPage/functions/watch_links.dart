@@ -10,9 +10,11 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher_string.dart';
 import 'package:Mirarr/services/api_client.dart';
+import 'package:Mirarr/functions/fetchers/providers/core/models.dart';
+import 'package:Mirarr/functions/fetchers/providers/provider_manager.dart';
+import 'package:Mirarr/player/temp_player_sheet.dart';
 import 'dart:convert';
-import 'package:Mirarr/functions/fetchers/providers/vega_movies_provider.dart';
-import 'package:Mirarr/player/video_player_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 // Model class for download items from Iran servers
 class DownloadItem {
@@ -347,7 +349,17 @@ class _WatchOptionsContentState extends State<_WatchOptionsContent> {
     });
 
     try {
-      final streams = await VegaMoviesProvider.fetchStreams(title);
+      final provider = ProviderManager.getProvider('VegaMovies');
+      List<StreamLink> streams = [];
+      if (provider != null) {
+        final searchResults = await provider.search(title);
+        if (searchResults.isNotEmpty) {
+           final details = await provider.loadDetails(searchResults.first.url);
+           if (details != null && details.sources.isNotEmpty) {
+               streams = await provider.extractStream(details.sources.first.url);
+           }
+        }
+      }
       if (!mounted) return;
       setState(() {
         isFetchingVegaMovies = false;
@@ -611,15 +623,11 @@ class _WatchOptionsContentState extends State<_WatchOptionsContent> {
                         ),
                         onTap: () {
                           Navigator.of(context).pop();
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (context) => VideoPlayerScreen(
-                                streamUrl: stream.streamUrl,
-                                title: widget.movieTitle,
-                                quality: stream.quality,
-                                accentColor: widget.mainColor,
-                              ),
-                            ),
+                          TempPlayerSheet.show(
+                            context: context,
+                            streamUrl: stream.streamUrl,
+                            title: widget.movieTitle,
+                            quality: stream.quality,
                           );
                         },
                         trailing: Row(
@@ -638,15 +646,11 @@ class _WatchOptionsContentState extends State<_WatchOptionsContent> {
                               tooltip: 'Play Movie',
                               onPressed: () {
                                 Navigator.of(context).pop();
-                                Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                    builder: (context) => VideoPlayerScreen(
-                                      streamUrl: stream.streamUrl,
-                                      title: widget.movieTitle,
-                                      quality: stream.quality,
-                                      accentColor: widget.mainColor,
-                                    ),
-                                  ),
+                                TempPlayerSheet.show(
+                                  context: context,
+                                  streamUrl: stream.streamUrl,
+                                  title: widget.movieTitle,
+                                  quality: stream.quality,
                                 );
                               },
                             ),

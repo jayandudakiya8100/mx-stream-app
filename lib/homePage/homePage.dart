@@ -7,13 +7,16 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:skeletonizer/skeletonizer.dart';
+import 'package:Mirarr/extensions/ui/extensions_screen.dart';
 
 import 'package:Mirarr/database/watch_history_database.dart';
 import 'package:Mirarr/functions/fetchers/fetch_popular_movies.dart';
 import 'package:Mirarr/functions/fetchers/fetch_streaming_providers.dart';
 import 'package:Mirarr/functions/fetchers/fetch_trending_movies.dart';
 import 'package:Mirarr/functions/fetchers/providers/media_provider_service.dart';
-import 'package:Mirarr/functions/fetchers/providers/vega_movies_provider.dart';
+import 'package:Mirarr/functions/fetchers/providers/core/models.dart';
+import 'package:Mirarr/functions/fetchers/providers/provider_manager.dart';
+import 'package:Mirarr/functions/fetchers/providers/provider_config.dart';
 import 'package:Mirarr/functions/get_base_url.dart';
 import 'package:Mirarr/functions/navigation_provider.dart';
 import 'package:Mirarr/functions/regionprovider_class.dart';
@@ -32,6 +35,13 @@ import 'package:Mirarr/widgets/bottom_bar.dart';
 import 'package:Mirarr/widgets/expressive_interactive_container.dart';
 import 'package:Mirarr/widgets/expressive_page_route.dart';
 import 'package:Mirarr/widgets/tv_focus_wrapper.dart';
+
+class ProviderShelfSection {
+  final String title;
+  final String categoryPath;
+  final List<ProviderSearchItem> items;
+  ProviderShelfSection({required this.title, required this.categoryPath, required this.items});
+}
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -53,10 +63,10 @@ class _HomeScreenState extends State<HomeScreen> {
   String _heroWatchStatus = 'None';
   String _selectedProvider = 'VegaMovies';
   List<MediaProviderItem> _dynamicProviders = MediaProviderService.defaultProviders;
-  final Map<int, VegaMediaItem> _vegaItemMap = {};
+  final Map<int, ProviderSearchItem> _providerItemMap = {};
   List<ContinueWatchingItem> _continueWatchingList = [];
   List<Movie> _homeMovies = [];
-  List<VegaShelfSection> _shelves = [];
+  List<ProviderShelfSection> _shelves = [];
 
   // Horizontal pagination state
   int _currentHomeShelfPage = 1;
@@ -116,10 +126,10 @@ class _HomeScreenState extends State<HomeScreen> {
     final nextPage = _currentHomeShelfPage + 1;
 
     try {
-      final newItems = await VegaMoviesProvider.fetchPage(
-        provider: _selectedProvider,
-        page: nextPage,
-      );
+      final provider = ProviderManager.getProvider(_selectedProvider);
+      if (provider == null) return;
+      
+      final newItems = await provider.getMainPage(category: 'home', page: nextPage);
 
       if (newItems.isNotEmpty && mounted) {
         final existingIds = <int>{
@@ -127,12 +137,15 @@ class _HomeScreenState extends State<HomeScreen> {
           ..._heroMovies.map((m) => m.id),
         };
 
-        final uniqueNewItems = newItems.where((item) => !existingIds.contains(item.id)).toList();
+        final uniqueNewItems = newItems.where((item) => !existingIds.contains(ProviderConfig.getStableMediaId(item.url))).toList();
 
         for (final item in uniqueNewItems) {
-          _vegaItemMap[item.id] = item;
+          _providerItemMap[ProviderConfig.getStableMediaId(item.url)] = item;
         }
-        final newMovies = uniqueNewItems.map((e) => e.toMovie()).toList();
+        
+        final newMovies = uniqueNewItems.map((e) => Movie(
+          title: e.title, releaseDate: '', posterPath: e.poster, backdropPath: e.poster, overView: '', id: ProviderConfig.getStableMediaId(e.url), score: 7.5
+        )).toList();
 
         setState(() {
           _currentHomeShelfPage = nextPage;
@@ -149,10 +162,20 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _fetchDynamicProviders() async {
-    final list = await MediaProviderService.fetchProviders();
-    if (mounted && list.isNotEmpty) {
+    final availableInRepo = ProviderManager.availableProviders;
+    
+    final List<MediaProviderItem> mappedProviders = [
+      const MediaProviderItem(id: 'none', name: 'None'),
+      const MediaProviderItem(id: 'random', name: 'Random'),
+    ];
+    
+    for (var p in availableInRepo) {
+      mappedProviders.add(MediaProviderItem(id: p.toLowerCase(), name: p));
+    }
+
+    if (mounted) {
       setState(() {
-        _dynamicProviders = list;
+        _dynamicProviders = mappedProviders;
       });
     }
   }
@@ -235,26 +258,54 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     try {
-      final data = await VegaMoviesProvider.fetchHomePageContent(_selectedProvider);
+      debugPrint('[_loadShelves] Selected provider: $_selectedProvider');
+      final provider = ProviderManager.getProvider(_selectedProvider);
+      if (provider == null) {
+        debugPrint('[_loadShelves] Error: Provider "$_selectedProvider" not found in ProviderManager!');
+        return;
+      }
+      
+      debugPrint('[_loadShelves] Fetching home items from provider: ${provider.name}');
+      final homeItems = await provider.getMainPage(category: 'home');
+      final netflixItems = await provider.getMainPage(category: 'netflix');
+      final primeItems = await provider.getMainPage(category: 'prime');
+      final hotstarItems = await provider.getMainPage(category: 'hotstar');
+      final animeItems = await provider.getMainPage(category: 'anime');
+      
       if (!mounted) return;
-
-      _vegaItemMap.clear();
-      for (final item in [
-        ...data.hero,
-        for (final s in data.shelves) ...s.items,
-      ]) {
-        _vegaItemMap[item.id] = item;
+      
+      _providerItemMap.clear();
+      final allItems = [...homeItems, ...netflixItems, ...primeItems, ...hotstarItems, ...animeItems];
+      for (final item in allItems) {
+        _providerItemMap[ProviderConfig.getStableMediaId(item.url)] = item;
       }
 
-      final heroList = data.hero.map((e) => e.toMovie()).toList();
-      final latestShelf = data.shelves.isNotEmpty ? data.shelves.first : null;
-      final homeList = latestShelf != null
-          ? latestShelf.items.map((e) => e.toMovie()).toList()
-          : <Movie>[];
+      List<ProviderShelfSection> newShelves = [];
+      if (homeItems.isNotEmpty) {
+        newShelves.add(ProviderShelfSection(title: 'Latest Updates', categoryPath: 'home', items: homeItems));
+      }
+      if (netflixItems.isNotEmpty) {
+        newShelves.add(ProviderShelfSection(title: 'Netflix', categoryPath: 'netflix', items: netflixItems));
+      }
+      if (primeItems.isNotEmpty) {
+        newShelves.add(ProviderShelfSection(title: 'Amazon Prime', categoryPath: 'prime', items: primeItems));
+      }
+      if (hotstarItems.isNotEmpty) {
+        newShelves.add(ProviderShelfSection(title: 'Disney+ Hotstar', categoryPath: 'hotstar', items: hotstarItems));
+      }
+      if (animeItems.isNotEmpty) {
+        newShelves.add(ProviderShelfSection(title: 'Anime Series', categoryPath: 'anime', items: animeItems));
+      }
 
-      Movie? hero = heroList.isNotEmpty
-          ? heroList.first
-          : (homeList.isNotEmpty ? homeList.first : null);
+      final heroList = homeItems.take(5).map((e) => Movie(
+        title: e.title, releaseDate: '', posterPath: e.poster, backdropPath: e.poster, overView: '', id: ProviderConfig.getStableMediaId(e.url), score: 7.5
+      )).toList();
+      
+      final homeList = homeItems.map((e) => Movie(
+        title: e.title, releaseDate: '', posterPath: e.poster, backdropPath: e.poster, overView: '', id: ProviderConfig.getStableMediaId(e.url), score: 7.5
+      )).toList();
+
+      Movie? hero = heroList.isNotEmpty ? heroList.first : (homeList.isNotEmpty ? homeList.first : null);
       String heroStatus = 'None';
       if (hero != null) {
         heroStatus = WatchStatusManager.getStatus(hero.id);
@@ -266,7 +317,7 @@ class _HomeScreenState extends State<HomeScreen> {
         _heroIndex = 0;
         _heroWatchStatus = heroStatus;
         _homeMovies = homeList;
-        _shelves = data.shelves;
+        _shelves = newShelves;
       });
 
       _startHeroAutoSlide();
@@ -293,15 +344,15 @@ class _HomeScreenState extends State<HomeScreen> {
           : _heroMovie;
 
   void _onTapMovieCard(Movie movie) {
-    final vegaItem = _vegaItemMap[movie.id];
-    if (vegaItem != null) {
+    final providerItem = _providerItemMap[movie.id];
+    if (providerItem != null) {
       Navigator.push(
         context,
         ExpressivePageRoute(
           page: ProviderMediaDetailPage(
-            title: vegaItem.title,
-            posterPath: vegaItem.posterPath,
-            permalink: vegaItem.permalink,
+            title: providerItem.title,
+            posterPath: providerItem.poster,
+            permalink: providerItem.url,
             providerName: _selectedProvider,
           ),
         ),
@@ -326,7 +377,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _onHeroStatusTap([Movie? targetMovie]) async {
     final movie = targetMovie ?? _currentHeroMovie;
     if (movie == null) return;
-    final vegaItem = _vegaItemMap[movie.id];
+    final providerItem = _providerItemMap[movie.id];
     final currentStatus = WatchStatusManager.getStatus(movie.id);
     final newStatus = await SetWatchStatusModal.show(
       context,
@@ -334,7 +385,7 @@ class _HomeScreenState extends State<HomeScreen> {
       title: movie.title,
       posterPath: movie.posterPath,
       initialStatus: currentStatus,
-      permalink: vegaItem?.permalink,
+      permalink: providerItem?.url,
       providerName: _selectedProvider,
     );
     if (newStatus != null && mounted) {
@@ -352,6 +403,7 @@ class _HomeScreenState extends State<HomeScreen> {
         page: ListGridViewMovies(
           movieList: list,
           title: title,
+          onTapMovieCard: (movie) => _onTapMovieCard(movie),
         ),
       ),
     );
@@ -396,6 +448,59 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
                   const SizedBox(height: 12),
+
+                  // Manage Extensions Button
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8.0),
+                    child: InkWell(
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const ExtensionsScreen(
+                              repoUrl: 'https://raw.githubusercontent.com/SaurabhKaperwan/CSX/builds/CS.json',
+                            ),
+                          ),
+                        ).then((_) {
+                          _fetchDynamicProviders();
+                        });
+                      },
+                      borderRadius: BorderRadius.circular(10),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Row(
+                          children: [
+                            Icon(Icons.extension_rounded, color: Colors.white, size: 20),
+                            SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                'Manage Extensions (Cloudstream)',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 15.5,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                            Icon(Icons.arrow_forward_ios_rounded, color: Colors.white54, size: 16),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                    child: Text(
+                      'ACTIVE PROVIDER', 
+                      style: TextStyle(color: Colors.white54, fontSize: 13, fontWeight: FontWeight.bold),
+                    ),
+                  ),
 
                   // Provider List
                   Expanded(
@@ -586,9 +691,10 @@ class _HomeScreenState extends State<HomeScreen> {
                             SliverToBoxAdapter(
                               child: _buildContentShelf(
                                 title: _shelves[i].title,
+                                onTapMovieCard: (movie) => _onTapMovieCard(movie),
                                 movies: i == 0
                                     ? _homeMovies
-                                    : _shelves[i].items.map((e) => e.toMovie()).toList(),
+                                    : _shelves[i].items.map((e) => Movie(title: e.title, releaseDate: '', posterPath: e.poster, backdropPath: e.poster, overView: '', id: ProviderConfig.getStableMediaId(e.url), score: 7.5)).toList(),
                                 scrollController:
                                     i == 0 ? _homeShelfScrollController : null,
                                 isLoadingNext:
@@ -597,7 +703,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                   _shelves[i].title,
                                   i == 0
                                       ? _homeMovies
-                                      : _shelves[i].items.map((e) => e.toMovie()).toList(),
+                                      : _shelves[i].items.map((e) => Movie(title: e.title, releaseDate: '', posterPath: e.poster, backdropPath: e.poster, overView: '', id: ProviderConfig.getStableMediaId(e.url), score: 7.5)).toList(),
                                 ),
                               ),
                             ),
@@ -1096,6 +1202,7 @@ class _HomeScreenState extends State<HomeScreen> {
     VoidCallback? onSeeAll,
     ScrollController? scrollController,
     bool isLoadingNext = false,
+    void Function(Movie)? onTapMovieCard,
   }) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;

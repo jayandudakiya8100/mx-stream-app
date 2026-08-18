@@ -7,9 +7,10 @@ import 'package:url_launcher/url_launcher_string.dart';
 import 'package:share_plus/share_plus.dart';
 
 import 'package:Mirarr/functions/fetchers/providers/provider_config.dart';
-import 'package:Mirarr/functions/fetchers/providers/vega_movies_provider.dart';
+import 'package:Mirarr/functions/fetchers/providers/core/models.dart';
+import 'package:Mirarr/functions/fetchers/providers/provider_manager.dart';
 import 'package:Mirarr/homePage/widgets/set_watch_status_modal.dart';
-import 'package:Mirarr/player/video_player_screen.dart';
+import 'package:Mirarr/player/temp_player_sheet.dart';
 import 'package:Mirarr/widgets/expressive_interactive_container.dart';
 import 'package:Mirarr/widgets/expressive_page_route.dart';
 import 'package:Mirarr/widgets/search_screen.dart';
@@ -35,7 +36,7 @@ class ProviderMediaDetailPage extends StatefulWidget {
 
 class _ProviderMediaDetailPageState extends State<ProviderMediaDetailPage> {
   bool _isLoading = true;
-  VegaMediaDetail? _detail;
+  ProviderMediaDetails? _detail;
   String? _errorMessage;
   int? _extractingEpisodeIndex;
   bool _isExtractingMovie = false;
@@ -179,7 +180,9 @@ class _ProviderMediaDetailPageState extends State<ProviderMediaDetailPage> {
     });
 
     try {
-      final data = await VegaMoviesProvider.fetchMediaDetails(widget.permalink);
+      final provider = ProviderManager.getProvider(widget.providerName);
+      if (provider == null) throw Exception('Provider not found');
+      final data = await provider.loadDetails(widget.permalink);
       if (mounted) {
         setState(() {
           _detail = data;
@@ -361,17 +364,13 @@ class _ProviderMediaDetailPageState extends State<ProviderMediaDetailPage> {
                                   final header = s.name.isNotEmpty
                                       ? s.name
                                       : '$title [${s.quality}]';
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) => VideoPlayerScreen(
-                                        streamUrl: s.streamUrl,
-                                        title: title,
-                                        mediaHeader: header,
-                                        quality: s.quality,
-                                        availableStreams: streams,
-                                      ),
-                                    ),
+                                  TempPlayerSheet.show(
+                                    context: context,
+                                    streamUrl: s.streamUrl,
+                                    title: title,
+                                    mediaHeader: header,
+                                    quality: s.quality,
+                                    availableStreams: streams,
                                   );
                                 },
                                 child: const Text(
@@ -386,17 +385,13 @@ class _ProviderMediaDetailPageState extends State<ProviderMediaDetailPage> {
                             final header = s.name.isNotEmpty
                                 ? s.name
                                 : '$title [${s.quality}]';
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => VideoPlayerScreen(
-                                  streamUrl: s.streamUrl,
-                                  title: title,
-                                  mediaHeader: header,
-                                  quality: s.quality,
-                                  availableStreams: streams,
-                                ),
-                              ),
+                            TempPlayerSheet.show(
+                              context: context,
+                              streamUrl: s.streamUrl,
+                              title: title,
+                              mediaHeader: header,
+                              quality: s.quality,
+                              availableStreams: streams,
                             );
                           },
                         ),
@@ -412,32 +407,61 @@ class _ProviderMediaDetailPageState extends State<ProviderMediaDetailPage> {
     );
   }
 
-  Future<void> _playEpisode(VegaEpisodeItem ep, int index) async {
+  Future<void> _playEpisode(EpisodeInfo ep, int index) async {
     setState(() {
       _extractingEpisodeIndex = index;
     });
 
     try {
-      final streams = await VCloudExtractor.extract(ep.url);
+      final provider = ProviderManager.getProvider(widget.providerName);
+      if (provider == null) throw Exception('Provider not found');
+      
+      List<StreamLink> streams = [];
+      String? fallbackUrl;
+      if (ep.sources.isNotEmpty) {
+        final futures = ep.sources.map<Future<List<StreamLink>>>((source) async {
+          try {
+            final extracted = await provider.extractStream(source.url);
+            return extracted.map((s) => StreamLink(
+              name: s.name,
+              streamUrl: s.streamUrl,
+              quality: source.resolution, // Preserve original resolution tag
+            )).toList();
+          } catch (_) {
+            return <StreamLink>[];
+          }
+        });
+        
+        final results = await Future.wait(futures);
+        for (var res in results) {
+          streams.addAll(res);
+        }
+        fallbackUrl = ep.sources.first.url;
+      } else {
+        fallbackUrl = ep.poster ?? widget.permalink;
+        streams = await provider.extractStream(fallbackUrl);
+      }
+      
       if (!mounted) return;
       setState(() => _extractingEpisodeIndex = null);
 
       if (streams.isNotEmpty) {
         _showStreamLinksSheet(
-          title: '${widget.title} - ${ep.title}',
+          title: '${widget.title} - ${ep.name}',
           streams: streams,
         );
       } else {
         // Fallback open in browser if extraction cannot be automated
-        if (await canLaunchUrlString(ep.url)) {
-          await launchUrlString(ep.url, mode: LaunchMode.externalApplication);
+        if (fallbackUrl != null && await canLaunchUrlString(fallbackUrl)) {
+          await launchUrlString(fallbackUrl, mode: LaunchMode.externalApplication);
         }
       }
     } catch (e) {
       if (mounted) {
         setState(() => _extractingEpisodeIndex = null);
-        if (await canLaunchUrlString(ep.url)) {
-          await launchUrlString(ep.url, mode: LaunchMode.externalApplication);
+        final fallbackUrl = ep.sources.isNotEmpty ? ep.sources.first.url : widget.permalink;
+        if (await canLaunchUrlString(fallbackUrl)) {
+          await launchUrlString(fallbackUrl, mode: LaunchMode.externalApplication);
         }
       }
     }
@@ -448,9 +472,27 @@ class _ProviderMediaDetailPageState extends State<ProviderMediaDetailPage> {
     setState(() => _isExtractingMovie = true);
 
     try {
-      final streams = _detail!.movieStreams.isNotEmpty
-          ? _detail!.movieStreams
-          : await VegaMoviesProvider.fetchStreams(_detail!.title);
+      final provider = ProviderManager.getProvider(widget.providerName);
+      List<StreamLink> streams = [];
+      if (_detail!.sources.isNotEmpty && provider != null) {
+        final futures = _detail!.sources.map<Future<List<StreamLink>>>((source) async {
+          try {
+            final extracted = await provider.extractStream(source.url);
+            return extracted.map((s) => StreamLink(
+              name: s.name,
+              streamUrl: s.streamUrl,
+              quality: source.resolution, // Preserve original resolution tag
+            )).toList();
+          } catch (_) {
+            return <StreamLink>[];
+          }
+        });
+        
+        final results = await Future.wait(futures);
+        for (var res in results) {
+          streams.addAll(res);
+        }
+      }
 
       if (!mounted) return;
       setState(() => _isExtractingMovie = false);
@@ -484,13 +526,13 @@ class _ProviderMediaDetailPageState extends State<ProviderMediaDetailPage> {
     final effectivePoster = (_detail?.poster != null && _detail!.poster.isNotEmpty)
         ? _detail!.poster
         : widget.posterPath;
-    final backdropUrl = (_detail?.backdrop != null && _detail!.backdrop.isNotEmpty)
-        ? _detail!.backdrop
+    final backdropUrl = (_detail?.poster != null && _detail!.poster.isNotEmpty)
+        ? _detail!.poster
         : effectivePoster;
     final displayTitle = _detail?.title ?? widget.title;
-    final isSeries = _detail?.isSeries ?? true;
+    final isSeries = _detail?.type == 'series';
     final rating = _detail?.rating ?? '7.0/10.0';
-    final desc = _detail?.description ?? 'Loading description...';
+    final desc = _detail?.plot ?? 'Loading description...';
     final episodes = _detail?.episodes ?? [];
 
     return Scaffold(
@@ -764,8 +806,8 @@ class _ProviderMediaDetailPageState extends State<ProviderMediaDetailPage> {
                     (context, index) {
                       final ep = episodes[index];
                       final isExtracting = _extractingEpisodeIndex == index;
-                      final epThumb = (ep.thumbnail != null && ep.thumbnail!.isNotEmpty)
-                          ? ep.thumbnail!
+                      final epThumb = (ep.poster != null && ep.poster!.isNotEmpty)
+                          ? ep.poster!
                           : backdropUrl;
 
                       return Container(
@@ -831,7 +873,7 @@ class _ProviderMediaDetailPageState extends State<ProviderMediaDetailPage> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    ep.title,
+                                    ep.name,
                                     style: const TextStyle(
                                       color: Colors.white,
                                       fontSize: 15,

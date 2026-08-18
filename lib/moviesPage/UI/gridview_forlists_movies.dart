@@ -7,11 +7,13 @@ import 'package:flutter/material.dart';
 class ListGridViewMovies extends StatefulWidget {
   final List movieList;
   final String title;
+  final void Function(dynamic)? onTapMovieCard;
 
   const ListGridViewMovies({
     Key? key,
     required this.movieList,
     this.title = 'Movie List',
+    this.onTapMovieCard,
   }) : super(key: key);
 
   @override
@@ -63,7 +65,13 @@ class _ListGridViewMoviesState extends State<ListGridViewMovies> {
           itemBuilder: (context, index) {
             final movie = widget.movieList[index];
             return TvFocusWrapper(
-              onTap: () => onTapMovie(movie.title, movie.id, context),
+              onTap: () {
+                if (widget.onTapMovieCard != null) {
+                  widget.onTapMovieCard!(movie);
+                } else {
+                  onTapMovie(movie.title, movie.id, context);
+                }
+              },
               child: CustomMovieWidget(
                 movie: movie,
                 showAvailability: false,

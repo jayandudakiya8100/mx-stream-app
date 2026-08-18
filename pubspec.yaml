@@ -42,6 +42,7 @@ dependencies:
   media_kit_video: ^1.2.5
   media_kit_libs_video: ^1.0.4
   wakelock_plus: ^1.2.8
+  screen_brightness: ^2.1.11
 
 dev_dependencies:
   flutter_test:
