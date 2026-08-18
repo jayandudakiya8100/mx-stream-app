@@ -7,7 +7,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:skeletonizer/skeletonizer.dart';
-import 'package:Mirarr/extensions/ui/extensions_screen.dart';
+import 'package:Mirarr/widgets/extensions_screen.dart';
 
 import 'package:Mirarr/database/watch_history_database.dart';
 import 'package:Mirarr/functions/fetchers/fetch_popular_movies.dart';
@@ -162,16 +162,14 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _fetchDynamicProviders() async {
-    final availableInRepo = ProviderManager.availableProviders;
+    final enabledProviders = await MediaProviderService.fetchProviders();
     
     final List<MediaProviderItem> mappedProviders = [
       const MediaProviderItem(id: 'none', name: 'None'),
       const MediaProviderItem(id: 'random', name: 'Random'),
     ];
     
-    for (var p in availableInRepo) {
-      mappedProviders.add(MediaProviderItem(id: p.toLowerCase(), name: p));
-    }
+    mappedProviders.addAll(enabledProviders);
 
     if (mounted) {
       setState(() {
@@ -414,7 +412,6 @@ class _HomeScreenState extends State<HomeScreen> {
       context: context,
       backgroundColor: Colors.transparent,
       barrierColor: Colors.black54,
-      showDragHandle: false,
       elevation: 0,
       clipBehavior: Clip.antiAlias,
       isScrollControlled: true,
@@ -436,18 +433,6 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Drag handle
-                  Center(
-                    child: Container(
-                      width: 36,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: Colors.white24,
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
 
                   // Manage Extensions Button
                   Padding(

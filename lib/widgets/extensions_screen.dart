@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:skeletonizer/skeletonizer.dart';
 import 'package:Mirarr/functions/fetchers/providers/provider_config.dart';
+import 'package:Mirarr/functions/fetchers/providers/media_provider_service.dart';
 
 class ExtensionPlugin {
   final String name;
@@ -46,7 +47,8 @@ class ExtensionPlugin {
 }
 
 class ExtensionsScreen extends StatefulWidget {
-  const ExtensionsScreen({super.key});
+  final String? repoUrl;
+  const ExtensionsScreen({super.key, this.repoUrl});
 
   @override
   State<ExtensionsScreen> createState() => _ExtensionsScreenState();
@@ -58,7 +60,7 @@ class _ExtensionsScreenState extends State<ExtensionsScreen> {
 
   bool _isLoading = true;
   String _repoName = 'Megix Repo(Hindi & English)';
-  String _repoUrl = _defaultRepoUrl;
+  late String _repoUrl;
   List<ExtensionPlugin> _plugins = [];
   String _selectedCategory = 'All';
 
@@ -67,6 +69,7 @@ class _ExtensionsScreenState extends State<ExtensionsScreen> {
   @override
   void initState() {
     super.initState();
+    _repoUrl = widget.repoUrl ?? _defaultRepoUrl;
     _loadExtensions();
   }
 
@@ -77,7 +80,13 @@ class _ExtensionsScreenState extends State<ExtensionsScreen> {
       final res = await http.get(Uri.parse(_pluginsUrl)).timeout(const Duration(seconds: 6));
       if (res.statusCode == 200) {
         final List<dynamic> data = json.decode(res.body);
-        final list = data.map((e) => ExtensionPlugin.fromJson(e)).toList();
+        final disabled = MediaProviderService.getDisabledProviders();
+        final list = data.map((e) {
+          final plugin = ExtensionPlugin.fromJson(e);
+          plugin.isDownloaded = !disabled.contains(plugin.internalName);
+          MediaProviderService.installProvider(plugin.internalName, plugin.name, plugin.url);
+          return plugin;
+        }).toList();
 
         if (mounted) {
           setState(() {
@@ -93,6 +102,7 @@ class _ExtensionsScreenState extends State<ExtensionsScreen> {
 
     // Fallback default plugin items
     if (mounted) {
+      final disabled = MediaProviderService.getDisabledProviders();
       setState(() {
         _plugins = [
           ExtensionPlugin(
@@ -105,40 +115,40 @@ class _ExtensionsScreenState extends State<ExtensionsScreen> {
             iconUrl: '',
             fileSize: 38129,
             tvTypes: ['Movie', 'TvSeries'],
-          ),
+          )..isDownloaded = !disabled.contains('Bollyflix'),
           ExtensionPlugin(
             name: 'CineStream',
             internalName: 'CineStream',
             url: '',
-            version: 480,
-            description: 'One stop solution for Movies, Series, Anime...',
-            language: 'en',
+            version: 11,
+            description: 'Movies and Series',
+            language: 'hi',
             iconUrl: '',
-            fileSize: 747520,
-            tvTypes: ['Movie', 'TvSeries', 'Anime'],
-          ),
+            fileSize: 18129,
+            tvTypes: ['Movie', 'TvSeries'],
+          )..isDownloaded = !disabled.contains('CineStream'),
           ExtensionPlugin(
             name: 'GDIndex',
             internalName: 'GDIndex',
             url: '',
-            version: 6,
-            description: 'Google Drive Index streaming',
+            version: 7,
+            description: 'Movies and Series',
             language: 'en',
             iconUrl: '',
-            fileSize: 18432,
+            fileSize: 7129,
             tvTypes: ['Movie', 'TvSeries'],
-          ),
+          )..isDownloaded = !disabled.contains('GDIndex'),
           ExtensionPlugin(
             name: 'MoviesDrive',
             internalName: 'MoviesDrive',
             url: '',
-            version: 33,
-            description: 'High Quality Movies and TV Shows',
+            version: 5,
+            description: 'Movies and Series',
             language: 'hi',
             iconUrl: '',
-            fileSize: 48128,
+            fileSize: 22129,
             tvTypes: ['Movie', 'TvSeries'],
-          ),
+          )..isDownloaded = !disabled.contains('MoviesDrive'),
           ExtensionPlugin(
             name: 'Moviesmod',
             internalName: 'Moviesmod',
@@ -173,6 +183,12 @@ class _ExtensionsScreenState extends State<ExtensionsScreen> {
             tvTypes: ['Movie', 'TvSeries', 'AsianDrama', 'Anime'],
           ),
         ];
+        
+        // Ensure all fallback plugins are installed
+        for (final p in _plugins) {
+          MediaProviderService.installProvider(p.internalName, p.name, p.url);
+        }
+        
         _isLoading = false;
       });
     }
@@ -444,7 +460,7 @@ class _ExtensionsScreenState extends State<ExtensionsScreen> {
                                   ),
                                   const SizedBox(height: 2),
                                   Text(
-                                    '${plugin.language.toUpperCase()} v${plugin.version} $sizeStr',
+                                    '${plugin.language.toUpperCase()} • v${plugin.version} • $sizeStr',
                                     style: const TextStyle(
                                       color: Colors.white54,
                                       fontSize: 12,
@@ -468,16 +484,14 @@ class _ExtensionsScreenState extends State<ExtensionsScreen> {
                             ),
 
                             // Download / Toggle Action
-                            IconButton(
-                              icon: Icon(
-                                plugin.isDownloaded ? Icons.delete_outline_rounded : Icons.download_rounded,
-                                color: plugin.isDownloaded ? Colors.white60 : Colors.white,
-                                size: 22,
-                              ),
-                              onPressed: () {
+                            Switch.adaptive(
+                              value: plugin.isDownloaded,
+                              activeColor: const Color(0xFF6366F1), // A modern indigo
+                              onChanged: (bool value) async {
                                 setState(() {
-                                  plugin.isDownloaded = !plugin.isDownloaded;
+                                  plugin.isDownloaded = value;
                                 });
+                                await MediaProviderService.toggleProvider(plugin.internalName, value);
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(
                                     content: Text(plugin.isDownloaded

@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'provider_config.dart';
+import 'provider_manager.dart';
 
 class MediaProviderItem {
   final String id;
@@ -33,9 +34,18 @@ class MediaProviderService {
   static const String _sessionBoxName = 'sessionBox';
   static const String _providerKey = 'selected_media_provider';
   static const String _cachedProvidersKey = 'cached_media_providers';
+  static const String _disabledProvidersKey = 'disabled_providers';
 
   /// Initial minimal fallback providers before network load
-  static List<MediaProviderItem> get defaultProviders => [];
+  static List<MediaProviderItem> get defaultProviders => [
+    const MediaProviderItem(id: 'bollyflix', name: 'Bollyflix'),
+    const MediaProviderItem(id: 'cinestream', name: 'CineStream'),
+    const MediaProviderItem(id: 'gdindex', name: 'GDIndex'),
+    const MediaProviderItem(id: 'moviesdrive', name: 'MoviesDrive'),
+    const MediaProviderItem(id: 'moviesmod', name: 'Moviesmod'),
+    const MediaProviderItem(id: 'onlinemovieshinditprovider', name: 'OnlineMoviesHinditProvider'),
+    const MediaProviderItem(id: 'vegamovies', name: 'VegaMovies'),
+  ];
 
   /// Get provider URL dynamically from cache or resolver
   static Future<String> getProviderUrl(String providerName) =>
@@ -78,9 +88,51 @@ class MediaProviderService {
     return key[0].toUpperCase() + key.substring(1);
   }
 
-  /// Fetch installed providers dynamically from Hive
+  /// Fetch installed providers dynamically from Hive (filtering out disabled ones)
   static Future<List<MediaProviderItem>> fetchProviders() async {
-    return _loadCachedProviders();
+    final all = _loadCachedProviders();
+    
+    // Also include built-in static providers that aren't already in the list
+    final builtIn = defaultProviders;
+    for (var p in builtIn) {
+      if (!all.any((element) => element.name.toLowerCase() == p.name.toLowerCase())) {
+        all.add(MediaProviderItem(id: p.id, name: p.name));
+      }
+    }
+
+    final disabled = getDisabledProviders();
+    return all.where((p) => !disabled.any((d) => d.toLowerCase() == p.name.toLowerCase() || d.toLowerCase() == p.id.toLowerCase())).toList();
+  }
+
+  /// Get the list of disabled provider names
+  static List<String> getDisabledProviders() {
+    try {
+      if (Hive.isBoxOpen(_sessionBoxName)) {
+        final box = Hive.box(_sessionBoxName);
+        final raw = box.get(_disabledProvidersKey);
+        if (raw != null && raw is List) {
+          return raw.map((e) => e.toString()).toList();
+        }
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  /// Enable or disable a provider
+  static Future<void> toggleProvider(String providerName, bool isEnabled) async {
+    try {
+      final box = Hive.isBoxOpen(_sessionBoxName)
+          ? Hive.box(_sessionBoxName)
+          : await Hive.openBox(_sessionBoxName);
+      
+      final disabled = getDisabledProviders().toSet();
+      if (isEnabled) {
+        disabled.remove(providerName);
+      } else {
+        disabled.add(providerName);
+      }
+      await box.put(_disabledProvidersKey, disabled.toList());
+    } catch (_) {}
   }
   
   /// Install a new provider from the repository

@@ -92,7 +92,7 @@ class _CustomMovieWidgetState extends State<CustomMovieWidget> {
             ? constraints.maxWidth
             : widget.width;
         final double cardHeight = constraints.maxHeight.isFinite && constraints.maxHeight > 0
-            ? (constraints.maxHeight - 44).clamp(60.0, 400.0)
+            ? (constraints.maxHeight - 48).clamp(60.0, 400.0)
             : widget.height;
 
         return SizedBox(

@@ -32,7 +32,7 @@ class HomeContentCard extends StatelessWidget {
         children: [
           // Rounded Poster Image
           Container(
-            height: 195,
+            height: 190,
             width: 140,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(16),
@@ -74,7 +74,7 @@ class HomeContentCard extends StatelessWidget {
                     ),
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           // Title Text Underneath Poster
           Text(
             movie.title,
