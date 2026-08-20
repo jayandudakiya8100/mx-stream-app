@@ -16,6 +16,7 @@ android/app/.cxx/
 STREAM_URL_RESPONSE.md
 release-keystore.jks
 keystore.jks
+scratch/
 *.class
 *.log
 *.pyc
