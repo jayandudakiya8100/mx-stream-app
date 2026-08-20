@@ -23,7 +23,7 @@ if (flutterVersionName == null) {
 }
 
 android {
-    namespace "com.mirarrapp.Mirarr"
+    namespace "com.mxstream.app"
     compileSdkVersion flutter.compileSdkVersion
     ndkVersion flutter.ndkVersion
 
@@ -50,23 +50,18 @@ android {
 
     signingConfigs {
         release {
-            def keystorePath = System.getenv("KEYSTORE_FILE") ?: "keystore.jks"
-            if (file(keystorePath).exists()) {
-                storeFile file(keystorePath)
-                storePassword System.getenv("KEYSTORE_PASSWORD")
-                keyAlias System.getenv("KEY_ALIAS")
-                keyPassword System.getenv("KEY_PASSWORD")
-            }
+            storeFile file("release-keystore.jks")
+            storePassword "mxstream123"
+            keyAlias "mxstream"
+            keyPassword "mxstream123"
         }
     }
     buildTypes {
         release {
-            def keystorePath = System.getenv("KEYSTORE_FILE") ?: "keystore.jks"
-            if (file(keystorePath).exists()) {
-                signingConfig signingConfigs.release
-            } else {
-                signingConfig signingConfigs.debug
-            }
+            signingConfig signingConfigs.release
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
 }

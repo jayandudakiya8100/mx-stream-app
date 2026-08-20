@@ -7,6 +7,7 @@ import 'package:mxstream/widgets/main_shell.dart';
 import 'package:mxstream/widgets/check_updates.dart';
 import 'package:mxstream/widgets/tv_focus_wrapper.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:provider/provider.dart';
@@ -18,10 +19,29 @@ import 'package:flutter/foundation.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:dynamic_color/dynamic_color.dart';
 
+const String OFFICIAL_SIGNATURE_HASH = 'f2bb9a1c9ccca7d5ac9827cff5e4839bfd90872e2d19ae72c24e8f96fddcadde';
+
+Future<void> verifyAppSignature() async {
+  if (!kReleaseMode) return; // Only verify in production
+  if (!Platform.isAndroid) return; // Only enforcing on Android for now
+  try {
+    const platform = MethodChannel('com.mxstream.app/signature');
+    final String signature = await platform.invokeMethod('getAppSignature');
+    if (signature != OFFICIAL_SIGNATURE_HASH) {
+      exit(0);
+    }
+  } catch (e) {
+    exit(0);
+  }
+}
+
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // 🛡️ ANTI-TAMPER SECURITY CHECK 🛡️
+  await verifyAppSignature();
   MediaKit.ensureInitialized();
 
   // Only dotenv + Hive are required before first paint; load them in parallel.
