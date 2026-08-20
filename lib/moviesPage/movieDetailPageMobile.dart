@@ -456,6 +456,7 @@ class _MovieDetailPageMobileState extends State<_MovieDetailPageMobile> {
                           );
                         },
                       ),
+                      const SizedBox(height: 80), // Padding to prevent overlap with floating button
                     ],
                   ),
                 ),
@@ -539,7 +540,7 @@ class _MovieDetailPageMobileState extends State<_MovieDetailPageMobile> {
           // Floating Watch Status Pill (Bottom Right Corner)
           Positioned(
             right: 16,
-            bottom: 24,
+            bottom: 24 + MediaQuery.of(context).padding.bottom,
             child: TvFocusWrapper(
               onTap: _openWatchStatusModal,
               borderRadius: 14,

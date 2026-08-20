@@ -15,12 +15,21 @@ class _SerieDetailPageMobileState extends State<_SerieDetailPageMobile> {
   bool _sortAscending = true;
   List<dynamic> _seasonEpisodes = [];
   bool _isLoadingSeason = false;
+  bool _initialSeasonLoaded = false;
 
   @override
   void initState() {
     super.initState();
     _loadWatchStatus();
     _loadInitialSeason();
+  }
+
+  @override
+  void didUpdateWidget(covariant _SerieDetailPageMobile oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!_initialSeasonLoaded && widget.state.seasonsList != null) {
+      _loadInitialSeason();
+    }
   }
 
   void _loadWatchStatus() {
@@ -33,6 +42,7 @@ class _SerieDetailPageMobileState extends State<_SerieDetailPageMobile> {
   void _loadInitialSeason() {
     final seasons = widget.state.seasonsList;
     if (seasons != null && seasons.isNotEmpty) {
+      _initialSeasonLoaded = true;
       final firstValid = seasons.firstWhere(
         (s) => s['season_number'] != 0,
         orElse: () => seasons.first,
@@ -648,6 +658,7 @@ class _SerieDetailPageMobileState extends State<_SerieDetailPageMobile> {
                             );
                           },
                         ),
+                      const SizedBox(height: 80), // Padding to prevent overlap with floating button
                     ],
                   ),
                 ),
@@ -727,7 +738,7 @@ class _SerieDetailPageMobileState extends State<_SerieDetailPageMobile> {
           // Floating Watch Status Pill (Bottom Right Corner)
           Positioned(
             right: 16,
-            bottom: 24,
+            bottom: 24 + MediaQuery.of(context).padding.bottom,
             child: TvFocusWrapper(
               onTap: _openWatchStatusModal,
               borderRadius: 14,

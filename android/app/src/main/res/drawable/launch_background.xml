@@ -7,6 +7,6 @@
     <item>
         <bitmap
             android:gravity="center"
-            android:src="@mipmap/ic_launcher" /> <!-- Use existing launcher icon -->
+            android:src="@mipmap/ic_launcher_foreground" /> <!-- Use foreground webp instead of XML adaptive icon -->
     </item>
 </layer-list>
