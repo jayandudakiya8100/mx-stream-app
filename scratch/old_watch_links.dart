@@ -1,4 +1,3 @@
-import 'package:Mirarr/functions/fetchers/providers/media_provider_service.dart';
 import 'package:Mirarr/functions/regionprovider_class.dart';
 import 'package:Mirarr/functions/show_error_dialog.dart';
 import 'package:Mirarr/moviesPage/checkers/custom_tmdb_ids_effects.dart';
@@ -11,13 +10,9 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher_string.dart';
 import 'package:Mirarr/services/api_client.dart';
-import 'package:Mirarr/functions/fetchers/providers/core/models.dart';
-import 'package:Mirarr/functions/fetchers/providers/provider_manager.dart';
-import 'package:Mirarr/functions/fetchers/providers/VegaMovies/old_vega_movies_provider.dart';
-import 'package:Mirarr/player/temp_player_sheet.dart';
-import 'package:Mirarr/player/custom_video_player.dart';
 import 'dart:convert';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:Mirarr/functions/fetchers/providers/vega_movies_provider.dart';
+import 'package:Mirarr/player/video_player_screen.dart';
 
 // Model class for download items from Iran servers
 class DownloadItem {
@@ -257,6 +252,25 @@ void showWatchOptions(BuildContext context, int movieId, String movieTitle,
     return;
   }
 
+  // Fetch sources dynamically for worldwide region
+  Map<String, Map<String, dynamic>> optionUrls = await fetchSources();
+
+  // Replace hardcoded URLs with dynamic ones
+  optionUrls = optionUrls.map((key, value) {
+    final url =
+        value['url'].toString().replaceAll('{movieId}', movieId.toString());
+    return MapEntry(key, {...value, 'url': url});
+  });
+
+  // Add VegaMovies option manually
+  optionUrls['VegaMovies'] = {
+    'url': 'vegamovies',
+    'hasAds': false,
+    'hasSubs': false,
+  };
+
+  List<String> options = optionUrls.keys.toList();
+
   if (!context.mounted) return;
 
   showModalBottomSheet(
@@ -269,7 +283,7 @@ void showWatchOptions(BuildContext context, int movieId, String movieTitle,
     clipBehavior: Clip.antiAlias,
     builder: (BuildContext bottomSheetContext) {
       Color mainColor = getColor(context, movieId);
-      final year = releaseDate.isNotEmpty ? releaseDate.split('-')[0] : '';
+      final year = releaseDate.split('-')[0];
       final imdbIdWithoutTT =
           imdbId.startsWith('tt') ? imdbId.substring(2) : imdbId;
 
@@ -280,6 +294,8 @@ void showWatchOptions(BuildContext context, int movieId, String movieTitle,
         region: region,
         year: year,
         imdbIdWithoutTT: imdbIdWithoutTT,
+        options: options,
+        optionUrls: optionUrls,
       );
     },
   );
@@ -292,6 +308,8 @@ class _WatchOptionsContent extends StatefulWidget {
   final String region;
   final String year;
   final String imdbIdWithoutTT;
+  final List<String> options;
+  final Map<String, Map<String, dynamic>> optionUrls;
 
   const _WatchOptionsContent({
     required this.movieId,
@@ -300,6 +318,8 @@ class _WatchOptionsContent extends StatefulWidget {
     required this.region,
     required this.year,
     required this.imdbIdWithoutTT,
+    required this.options,
+    required this.optionUrls,
   });
 
   @override
@@ -312,87 +332,38 @@ class _WatchOptionsContentState extends State<_WatchOptionsContent> {
   bool iranDownloadsLoaded = false;
   String? iranDownloadsError;
 
-  List<MediaProviderItem> _providers = [];
-  bool _isLoadingProviders = true;
-  
-  bool isFetchingStreams = false;
-  List<StreamLink> currentStreams = [];
-  bool streamsLoaded = false;
-  String? streamsError;
-  String? selectedProviderName;
+  bool isFetchingVegaMovies = false;
+  List<StreamLink> vegaMoviesStreams = [];
+  bool vegaMoviesLoaded = false;
+  String? vegaMoviesError;
+  bool showVegaMoviesView = false;
 
-
-  int _getResolutionScore(String quality) {
-    if (quality.contains('2160p') || quality.contains('4K')) return 4;
-    if (quality.contains('1080p')) return 3;
-    if (quality.contains('720p')) return 2;
-    if (quality.contains('480p')) return 1;
-    return 0;
-  }
-
-  int _getServerScore(String name) {
-    final lower = name.toLowerCase();
-    if (lower.contains('pixeldrain')) return 4;
-    if (lower.contains('10gbps')) return 3;
-    if (lower.contains('fslv2')) return 2;
-    if (lower.contains('fsl')) return 1;
-    return 0;
-  }
-
-  void _sortStreams(List<StreamLink> streams) {
-    streams.sort((a, b) {
-      int resA = _getResolutionScore(a.quality);
-      int resB = _getResolutionScore(b.quality);
-      if (resA != resB) {
-        return resB.compareTo(resA); // Descending resolution
-      }
-      int srvA = _getServerScore(a.name);
-      int srvB = _getServerScore(b.name);
-      return srvB.compareTo(srvA); // Descending server priority
-    });
-  }
-
-  void _fetchStreams(String title, String providerName) async {
+  void _fetchVegaMoviesStreams(String title) async {
     setState(() {
-      isFetchingStreams = true;
-      streamsError = null;
-      currentStreams = [];
-      streamsLoaded = false;
-      selectedProviderName = providerName;
+      isFetchingVegaMovies = true;
+      vegaMoviesError = null;
+      vegaMoviesStreams = [];
+      vegaMoviesLoaded = false;
     });
 
     try {
-      final provider = ProviderManager.getProvider(providerName);
-      List<StreamLink> streams = [];
-      if (providerName.toLowerCase() == 'vegamovies') {
-         final oldStreams = await OldVegaMoviesProvider.fetchStreams(title);
-         streams = oldStreams.map((s) => StreamLink(name: s.name, streamUrl: s.streamUrl, quality: s.quality)).toList();
-      } else if (provider != null) {
-        final searchResults = await provider.search(title);
-        if (searchResults.isNotEmpty) {
-           final details = await provider.loadDetails(searchResults.first.url);
-           if (details != null && details.sources.isNotEmpty) {
-               streams = await provider.extractStream(details.sources.first.url);
-           }
-        }
-      }
+      final streams = await VegaMoviesProvider.fetchStreams(title);
       if (!mounted) return;
       setState(() {
-        isFetchingStreams = false;
-        _sortStreams(streams);
-        currentStreams = streams;
-        streamsLoaded = true;
+        isFetchingVegaMovies = false;
+        vegaMoviesStreams = streams;
+        vegaMoviesLoaded = true;
         if (streams.isEmpty) {
-          streamsError =
-              'No streaming links found for "$title". The movie may not be available on $providerName yet.';
+          vegaMoviesError =
+              'No streaming links found for "$title". The movie may not be available on VegaMovies yet.';
         }
       });
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        isFetchingStreams = false;
-        streamsLoaded = true;
-        streamsError =
+        isFetchingVegaMovies = false;
+        vegaMoviesLoaded = true;
+        vegaMoviesError =
             'Could not fetch streaming links. Please check your internet connection and try again.';
       });
     }
@@ -403,17 +374,6 @@ class _WatchOptionsContentState extends State<_WatchOptionsContent> {
     super.initState();
     if (widget.region == 'iran' && !kIsWeb) {
       _loadIranDownloads();
-    }
-    _loadProviders();
-  }
-  
-  Future<void> _loadProviders() async {
-    final providers = await MediaProviderService.fetchProviders();
-    if (mounted) {
-      setState(() {
-        _providers = providers;
-        _isLoadingProviders = false;
-      });
     }
   }
 
@@ -529,7 +489,7 @@ class _WatchOptionsContentState extends State<_WatchOptionsContent> {
       maxChildSize: 0.95,
       expand: false,
       builder: (context, scrollController) {
-        if (selectedProviderName != null) {
+        if (showVegaMoviesView) {
           return Column(
             children: [
               Padding(
@@ -541,13 +501,13 @@ class _WatchOptionsContentState extends State<_WatchOptionsContent> {
                       color: widget.mainColor,
                       onPressed: () {
                         setState(() {
-                          selectedProviderName = null;
+                          showVegaMoviesView = false;
                         });
                       },
                     ),
                     const SizedBox(width: 4),
                     Text(
-                      '$selectedProviderName Streams',
+                      'VegaMovies Streams',
                       style: TextStyle(
                         color: widget.mainColor,
                         fontSize: 16,
@@ -555,18 +515,18 @@ class _WatchOptionsContentState extends State<_WatchOptionsContent> {
                       ),
                     ),
                     const Spacer(),
-                    if (!isFetchingStreams)
+                    if (!isFetchingVegaMovies)
                       IconButton(
                         icon: Icon(Icons.refresh, color: widget.mainColor, size: 20),
                         tooltip: 'Refresh',
                         onPressed: () =>
-                            _fetchStreams(widget.movieTitle, selectedProviderName!),
+                            _fetchVegaMoviesStreams(widget.movieTitle),
                       ),
                   ],
                 ),
               ),
               const CustomDivider(),
-              if (isFetchingStreams)
+              if (isFetchingVegaMovies)
                 Expanded(
                   child: Center(
                     child: Column(
@@ -582,7 +542,7 @@ class _WatchOptionsContentState extends State<_WatchOptionsContent> {
                     ),
                   ),
                 )
-              else if (streamsError != null && currentStreams.isEmpty)
+              else if (vegaMoviesError != null && vegaMoviesStreams.isEmpty)
                 Expanded(
                   child: Center(
                     child: Padding(
@@ -594,7 +554,7 @@ class _WatchOptionsContentState extends State<_WatchOptionsContent> {
                               color: widget.mainColor, size: 48),
                           const SizedBox(height: 12),
                           Text(
-                            streamsError!,
+                            vegaMoviesError!,
                             textAlign: TextAlign.center,
                             style: const TextStyle(
                                 color: Colors.white70, fontSize: 13),
@@ -608,7 +568,7 @@ class _WatchOptionsContentState extends State<_WatchOptionsContent> {
                             icon: const Icon(Icons.refresh, size: 18),
                             label: const Text('Try Again'),
                             onPressed: () =>
-                                _fetchStreams(widget.movieTitle, selectedProviderName!),
+                                _fetchVegaMoviesStreams(widget.movieTitle),
                           ),
                         ],
                       ),
@@ -621,9 +581,9 @@ class _WatchOptionsContentState extends State<_WatchOptionsContent> {
                     controller: scrollController,
                     padding:
                         const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                    itemCount: currentStreams.length,
+                    itemCount: vegaMoviesStreams.length,
                     itemBuilder: (context, index) {
-                      final stream = currentStreams[index];
+                      final stream = vegaMoviesStreams[index];
                       return ListTile(
                         leading: Container(
                           padding: const EdgeInsets.all(8),
@@ -638,53 +598,26 @@ class _WatchOptionsContentState extends State<_WatchOptionsContent> {
                           stream.quality,
                           style: const TextStyle(
                             color: Colors.white,
-                            fontSize: 12,
+                            fontSize: 13,
                             fontWeight: FontWeight.w600,
-                            height: 1.2,
                           ),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
-                        subtitle: Padding(
-                          padding: const EdgeInsets.only(top: 6.0),
-                          child: Row(
-                            children: [
-                              Flexible(
-                                child: Text(
-                                  stream.name,
-                                  style: const TextStyle(color: Colors.grey, fontSize: 11),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                              if (_getServerScore(stream.name) >= 3)
-                                Container(
-                                  margin: const EdgeInsets.only(left: 8),
-                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: Colors.green.withValues(alpha: 0.2),
-                                    borderRadius: BorderRadius.circular(4),
-                                    border: Border.all(color: Colors.green.withValues(alpha: 0.5)),
-                                  ),
-                                  child: const Text(
-                                    'Recommend',
-                                    style: TextStyle(
-                                      color: Colors.green,
-                                      fontSize: 9,
-                                      fontWeight: FontWeight.bold,
-                                      letterSpacing: 0.5,
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          ),
+                        subtitle: Text(
+                          stream.name,
+                          style:
+                              const TextStyle(color: Colors.grey, fontSize: 11),
                         ),
                         onTap: () {
                           Navigator.of(context).pop();
                           Navigator.of(context).push(
                             MaterialPageRoute(
-                              builder: (_) => CustomVideoPlayer(
-                                videoUrl: stream.streamUrl,
+                              builder: (context) => VideoPlayerScreen(
+                                streamUrl: stream.streamUrl,
                                 title: widget.movieTitle,
+                                quality: stream.quality,
+                                accentColor: widget.mainColor,
                               ),
                             ),
                           );
@@ -705,11 +638,15 @@ class _WatchOptionsContentState extends State<_WatchOptionsContent> {
                               tooltip: 'Play Movie',
                               onPressed: () {
                                 Navigator.of(context).pop();
-                                TempPlayerSheet.show(
-                                  context: context,
-                                  streamUrl: stream.streamUrl,
-                                  title: widget.movieTitle,
-                                  quality: stream.quality,
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (context) => VideoPlayerScreen(
+                                      streamUrl: stream.streamUrl,
+                                      title: widget.movieTitle,
+                                      quality: stream.quality,
+                                      accentColor: widget.mainColor,
+                                    ),
+                                  ),
                                 );
                               },
                             ),
@@ -747,50 +684,70 @@ class _WatchOptionsContentState extends State<_WatchOptionsContent> {
                 controller: scrollController,
                 children: [
                   const CustomDivider(),
-                  if (_isLoadingProviders)
-                    const Padding(
-                      padding: EdgeInsets.all(20.0),
-                      child: Center(child: CircularProgressIndicator()),
-                    )
-                  else if (_providers.isEmpty)
-                    const Padding(
-                      padding: EdgeInsets.all(20.0),
-                      child: Center(
-                        child: Text(
-                          'No providers enabled. Please enable providers in Extensions.',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(color: Colors.white70),
-                        ),
+                  // Regular streaming options
+                  ...widget.options.map((option) {
+                    Map<String, dynamic>? optionData =
+                        widget.optionUrls[option];
+                    return ListTile(
+                      leading:
+                          Icon(Icons.play_arrow, color: widget.mainColor),
+                      title: Text(
+                        option,
+                        style: const TextStyle(color: Colors.white),
                       ),
-                    )
-                  else
-                    ..._providers.map((provider) {
-                      return ListTile(
-                        leading:
-                            Icon(Icons.play_arrow, color: widget.mainColor),
-                        title: Text(
-                          provider.name,
-                          style: const TextStyle(color: Colors.white),
-                        ),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            if (selectedProviderName == provider.name && isFetchingStreams)
-                              SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: widget.mainColor,
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (option == 'VegaMovies' && isFetchingVegaMovies)
+                            SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: widget.mainColor,
+                              ),
+                            )
+                          else ...[
+                            if (optionData?['hasAds'] == true)
+                              Text(
+                                'Ads',
+                                style: TextStyle(
+                                    color:
+                                        Theme.of(context).highlightColor),
+                              ),
+                            if (optionData?['hasSubs'] == true)
+                              Padding(
+                                padding: const EdgeInsets.only(left: 8.0),
+                                child: Text(
+                                  'Subs',
+                                  style:
+                                      TextStyle(color: widget.mainColor),
                                 ),
                               ),
                           ],
-                        ),
-                        onTap: () {
-                          _fetchStreams(widget.movieTitle, provider.name);
-                        },
-                      );
-                    }),
+                        ],
+                      ),
+                      onTap: () async {
+                        if (option == 'VegaMovies') {
+                          setState(() {
+                            showVegaMoviesView = true;
+                          });
+                          if (!vegaMoviesLoaded && !isFetchingVegaMovies) {
+                            _fetchVegaMoviesStreams(widget.movieTitle);
+                          }
+                          return;
+                        }
+                        if (optionData != null &&
+                            optionData['url'] != null) {
+                          _launchUrl(Uri.parse(optionData['url']));
+                        } else {
+                          showErrorDialog('Error',
+                              'URL not available for $option', context);
+                        }
+                        Navigator.of(context).pop();
+                      },
+                    );
+                  }),
 
                   // Iran downloads section
                   if (widget.region == 'iran') ...[
@@ -838,52 +795,15 @@ class _WatchOptionsContentState extends State<_WatchOptionsContent> {
                             style: TextStyle(color: Colors.red[300]),
                           ),
                         ),
-                      if (iranDownloads.isEmpty && iranDownloadsLoaded)
+                      if (iranDownloadsLoaded && iranDownloads.isEmpty)
                         const Padding(
                           padding: EdgeInsets.all(16),
                           child: Text(
-                            'No direct downloads found.',
+                            'No direct downloads available',
                             style: TextStyle(color: Colors.grey),
                           ),
                         ),
-                      ...iranDownloads.map((item) {
-                        return ListTile(
-                          contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 4),
-                          leading: Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: widget.mainColor.withValues(alpha: 0.2),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Icon(Icons.download,
-                                color: widget.mainColor, size: 20),
-                          ),
-                          title: Text(
-                            item.fileName,
-                            style: const TextStyle(
-                                color: Colors.white, fontSize: 13),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          subtitle: Text(
-                            '${item.size} • ${item.server}',
-                            style: const TextStyle(
-                                color: Colors.grey, fontSize: 11),
-                          ),
-                          onTap: () {
-                            _launchUrl(Uri.parse(item.url));
-                            Navigator.of(context).pop();
-                          },
-                          trailing: IconButton(
-                            icon: Icon(Icons.copy,
-                                color: widget.mainColor, size: 20),
-                            tooltip: 'Copy URL',
-                            onPressed: () =>
-                                _copyToClipboard(context, item.url),
-                          ),
-                        );
-                      }),
+                      ...iranDownloads.map((item) => _buildDownloadItemTile(item)),
                     ],
                   ],
                 ],
@@ -892,6 +812,165 @@ class _WatchOptionsContentState extends State<_WatchOptionsContent> {
           ],
         );
       },
+    );
+  }
+
+  Widget _buildDownloadItemTile(DownloadItem item) {
+    // Extract quality info from filename
+    String quality = '';
+    if (item.fileName.contains('1080p')) {
+      quality = '1080p';
+    } else if (item.fileName.contains('720p')) {
+      quality = '720p';
+    } else if (item.fileName.contains('480p')) {
+      quality = '480p';
+    } else if (item.fileName.contains('2160p') || item.fileName.contains('4K')) {
+      quality = '4K';
+    }
+
+    // Extract codec info
+    String codec = '';
+    if (item.fileName.contains('x265') || item.fileName.contains('HEVC')) {
+      codec = 'x265';
+    } else if (item.fileName.contains('x264')) {
+      codec = 'x264';
+    }
+
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      leading: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: widget.mainColor.withValues(alpha: 0.2),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Icon(
+          Icons.movie_outlined,
+          color: widget.mainColor,
+          size: 20,
+        ),
+      ),
+      title: Text(
+        item.fileName,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 12,
+        ),
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+      ),
+      subtitle: Padding(
+        padding: const EdgeInsets.only(top: 4),
+        child: Wrap(
+          spacing: 6,
+          runSpacing: 4,
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: Colors.grey[800],
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                item.server,
+                style: const TextStyle(
+                  color: Colors.white70,
+                  fontSize: 10,
+                ),
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: widget.mainColor.withValues(alpha: 0.3),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                item.size,
+                style: TextStyle(
+                  color: widget.mainColor,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            if (quality.isNotEmpty)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  quality,
+                  style: const TextStyle(
+                    color: Colors.blue,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            if (codec.isNotEmpty)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.purple.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  codec,
+                  style: const TextStyle(
+                    color: Colors.purple,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            if (item.mayCensorContent)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: const Text(
+                  '⚠ May Contain Censors',
+                  style: TextStyle(
+                    color: Colors.orange,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            icon: Icon(
+              Icons.copy,
+              color: widget.mainColor,
+              size: 20,
+            ),
+            onPressed: () => _copyToClipboard(context, item.url),
+            tooltip: 'Copy URL',
+          ),
+          IconButton(
+            icon: Icon(
+              Icons.download,
+              color: widget.mainColor,
+              size: 20,
+            ),
+            onPressed: () {
+              _launchUrl(Uri.parse(item.url));
+              Navigator.of(context).pop();
+            },
+            tooltip: 'Download',
+          ),
+        ],
+      ),
     );
   }
 }

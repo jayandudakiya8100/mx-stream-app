@@ -1,6 +1,6 @@
 import 'package:Mirarr/functions/themeprovider_class.dart';
 import 'package:Mirarr/functions/regionprovider_class.dart';
-import 'package:Mirarr/functions/supabase_provider.dart';
+
 import 'package:Mirarr/functions/url_parser.dart';
 import 'package:Mirarr/functions/navigation_provider.dart';
 import 'package:Mirarr/widgets/main_shell.dart';
@@ -33,14 +33,14 @@ void main() async {
   // Theme/region load asynchronously in their constructors and notify when ready.
   final themeProvider = ThemeProvider(AppThemes.orangeTheme);
   final regionProvider = RegionProvider('worldwide');
-  final supabaseProvider = SupabaseProvider();
+
 
   runApp(
     MultiProvider(
       providers: [
         ChangeNotifierProvider.value(value: themeProvider),
         ChangeNotifierProvider.value(value: regionProvider),
-        ChangeNotifierProvider.value(value: supabaseProvider),
+
         ChangeNotifierProvider(create: (_) => NavigationProvider()),
       ],
       child: const MyApp(),
@@ -51,10 +51,8 @@ void main() async {
   WidgetsBinding.instance.addPostFrameCallback((_) async {
     await Future.wait([
       TvFocusModeManager.init(),
-      supabaseProvider.loadSupabaseConfig(),
       _initDesktopWindow(),
     ]);
-    supabaseProvider.prefetchRemoteData();
   });
 }
 

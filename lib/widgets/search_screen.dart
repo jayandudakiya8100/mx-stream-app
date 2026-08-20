@@ -1,351 +1,426 @@
+import 'dart:convert';
 import 'dart:async';
-import 'package:flutter/cupertino.dart';
-import 'package:flutter/material.dart';
-import 'package:hive_flutter/hive_flutter.dart';
-import 'package:cached_network_image/cached_network_image.dart';
-import 'package:skeletonizer/skeletonizer.dart';
-
-import 'package:Mirarr/functions/fetchers/providers/global_provider_search_service.dart';
-import 'package:Mirarr/functions/fetchers/providers/media_provider_service.dart';
-import 'package:Mirarr/functions/fetchers/providers/core/models.dart';
-import 'package:Mirarr/functions/fetchers/providers/provider_config.dart';
-import 'package:Mirarr/homePage/widgets/provider_media_detail_page.dart';
-import 'package:Mirarr/moviesPage/UI/gridview_forlists_movies.dart';
-import 'package:Mirarr/moviesPage/models/movie.dart';
-import 'package:Mirarr/utils/expressive_motion.dart';
-import 'package:Mirarr/widgets/bottom_bar.dart';
-import 'package:Mirarr/widgets/expressive_interactive_container.dart';
-import 'package:Mirarr/widgets/expressive_page_route.dart';
+import 'dart:ui';
+import 'package:Mirarr/functions/get_base_url.dart';
+import 'package:Mirarr/functions/regionprovider_class.dart';
+import 'package:Mirarr/moviesPage/UI/cast_crew_row.dart';
+import 'package:Mirarr/moviesPage/UI/movie_result.dart';
+import 'package:Mirarr/moviesPage/functions/on_tap_movie.dart';
+import 'package:Mirarr/seriesPage/UI/serie_result.dart';
+import 'package:Mirarr/seriesPage/function/on_tap_serie.dart';
+import 'package:Mirarr/widgets/discover/discover_with_filters.dart';
+import 'package:Mirarr/widgets/models/person.dart';
+import 'package:Mirarr/widgets/person_result.dart';
 import 'package:Mirarr/widgets/tv_focus_wrapper.dart';
+import 'package:Mirarr/widgets/bottom_bar.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter/material.dart';
+import 'package:Mirarr/services/api_client.dart';
+import 'package:Mirarr/moviesPage/models/movie.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:Mirarr/seriesPage/models/serie.dart';
+import 'package:provider/provider.dart';
 
 class SearchScreen extends StatefulWidget {
-  final String? initialQuery;
-
-  const SearchScreen({
-    Key? key,
-    this.initialQuery,
-  }) : super(key: key);
+  const SearchScreen({Key? key}) : super(key: key);
 
   @override
-  State<SearchScreen> createState() => _SearchScreenState();
+  _SearchScreenState createState() => _SearchScreenState();
 }
 
-class _SearchScreenState extends State<SearchScreen> {
+class _SearchScreenState extends State<SearchScreen>
+    with TickerProviderStateMixin {
+  late TabController _tabController;
+  List<Movie> movieResults = [];
+  List<Serie> tvResults = [];
+  List<Person> personResults = [];
+
+  final apiKey = dotenv.env['TMDB_API_KEY'];
   final TextEditingController _searchController = TextEditingController();
-  final FocusNode _searchFocusNode = FocusNode();
   Timer? _debounce;
-  StreamSubscription<ProviderSearchResultSection>? _searchSubscription;
+  int _searchFetchId = 0;
 
-  // Category filter state
-  int _selectedCategoryIndex = 0;
-  final List<String> _categories = [
-    'All',
-    'Movies',
-    'TV Series',
-    'Anime',
-    'Asian Dramas',
-  ];
+  late FocusNode _searchFocusNode;
 
-  // Provider search results
-  final Map<String, ProviderSearchResultSection> _providerResults = {};
-  bool _isSearching = false;
-  List<String> _searchHistory = [];
-  Set<String> _enabledProviderIds = {};
-  List<MediaProviderItem> _availableProviders = [];
-
-  // Dummy cards for skeletonizer state
-  final List<ProviderSearchItem> _dummyItems = List.generate(
-    5,
-    (index) => ProviderSearchItem(
-      title: 'Loading Movie Title Placeholder',
-      poster: '',
-      url: '',
-      type: 'movie',
-    ),
-  );
+  KeyEventResult _handleSearchFocusKey(FocusNode node, KeyEvent event) {
+    if (event is KeyDownEvent && TvFocusModeManager.isTvFocusMode.value) {
+      if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+        node.focusInDirection(TraversalDirection.down);
+        return KeyEventResult.handled;
+      }
+      if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+        node.focusInDirection(TraversalDirection.up);
+        return KeyEventResult.handled;
+      }
+    }
+    return KeyEventResult.ignored;
+  }
 
   @override
   void initState() {
     super.initState();
-    _searchController.addListener(_onSearchInputChanged);
-    _loadSearchHistory();
-    _loadAvailableProviders();
-
-    if (widget.initialQuery != null && widget.initialQuery!.trim().isNotEmpty) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _searchController.text = widget.initialQuery!.trim();
-        _executeGlobalSearch(widget.initialQuery!.trim());
-      });
-    }
+    _tabController = TabController(length: 4, vsync: this);
+    _searchController.addListener(_onSearchChanged);
+    _searchFocusNode = FocusNode(onKeyEvent: _handleSearchFocusKey);
   }
 
-  @override
-  void dispose() {
+  void _onSearchChanged() {
     _debounce?.cancel();
-    _searchSubscription?.cancel();
-    _searchController.dispose();
-    _searchFocusNode.dispose();
-    super.dispose();
-  }
-
-  Future<void> _loadAvailableProviders() async {
-    final list = await MediaProviderService.fetchProviders();
-    if (mounted) {
-      setState(() {
-        _availableProviders = list.where((p) => p.id != 'none' && p.id != 'random').toList();
-        _enabledProviderIds = _availableProviders.map((p) => p.id.toLowerCase()).toSet();
-      });
-    }
-  }
-
-  void _loadSearchHistory() {
-    try {
-      final box = Hive.box('sessionBox');
-      final list = box.get('search_history');
-      if (list is List && list.isNotEmpty) {
+    _debounce = Timer(const Duration(milliseconds: 500), () {
+      final query = _searchController.text.trim();
+      if (!mounted) return;
+      if (query.isNotEmpty) {
+        _runSearch(query);
+      } else {
+        _searchFetchId++;
         setState(() {
-          _searchHistory = List<String>.from(list);
+          movieResults = [];
+          tvResults = [];
+          personResults = [];
         });
       }
-    } catch (_) {}
-  }
-
-  void _saveSearchHistory() {
-    try {
-      final box = Hive.box('sessionBox');
-      box.put('search_history', _searchHistory);
-    } catch (_) {}
-  }
-
-  void _addToHistory(String query) {
-    final trimmed = query.trim();
-    if (trimmed.isEmpty) return;
-    setState(() {
-      _searchHistory.removeWhere((item) => item.toLowerCase() == trimmed.toLowerCase());
-      _searchHistory.insert(0, trimmed);
-      if (_searchHistory.length > 20) {
-        _searchHistory = _searchHistory.sublist(0, 20);
-      }
     });
-    _saveSearchHistory();
   }
 
-  void _onSearchInputChanged() {
-    final query = _searchController.text.trim();
-    _debounce?.cancel();
+  Future<void> _runSearch(String query) async {
+    final region =
+        Provider.of<RegionProvider>(context, listen: false).currentRegion;
+    final baseUrl = getBaseUrl(region);
+    final encodedQuery = Uri.encodeQueryComponent(query);
+    final currentFetchId = ++_searchFetchId;
 
-    if (query.isEmpty) {
-      _searchSubscription?.cancel();
+    try {
+      final results = await Future.wait([
+        _fetchMovies(baseUrl, encodedQuery),
+        _fetchSeries(baseUrl, encodedQuery),
+        _fetchPeople(baseUrl, encodedQuery),
+      ]);
+
+      if (!mounted || currentFetchId != _searchFetchId) return;
+
       setState(() {
-        _isSearching = false;
-        _providerResults.clear();
+        movieResults = results[0] as List<Movie>;
+        tvResults = results[1] as List<Serie>;
+        personResults = results[2] as List<Person>;
       });
-      return;
+    } catch (e) {
+      if (!mounted || currentFetchId != _searchFetchId) return;
+      debugPrint('Search failed for "$query": $e');
+    }
+  }
+
+  Future<List<Movie>> _fetchMovies(String baseUrl, String encodedQuery) async {
+    final response = await apiClient.get(
+      Uri.parse(
+        '${baseUrl}search/movie?api_key=$apiKey&query=$encodedQuery',
+      ),
+    );
+    if (response.statusCode != 200) {
+      throw Exception('Failed to load movie data');
     }
 
-    _debounce = Timer(const Duration(milliseconds: 400), () {
-      _executeGlobalSearch(query);
-    });
+    final List<Movie> movies = [];
+    final List<dynamic> results = json.decode(response.body)['results'];
+    for (var result in results) {
+      movies.add(Movie(
+        title: result['title'],
+        releaseDate: result['release_date'] ?? '',
+        posterPath: result['poster_path'] ?? '',
+        overView: result['overview'] ?? '',
+        id: result['id'] ?? '',
+        backdropPath: result['backdrop_path'] ?? '',
+        score: result['vote_average'] ?? 0.0,
+      ));
+    }
+    return movies;
   }
 
-  void _executeGlobalSearch(String query) {
-    final cleanQuery = query.trim();
-    if (cleanQuery.isEmpty) return;
-
-    _addToHistory(cleanQuery);
-    _searchSubscription?.cancel();
-
-    setState(() {
-      _isSearching = true;
-      _providerResults.clear();
-    });
-
-    final targetIds = _enabledProviderIds.isNotEmpty ? _enabledProviderIds.toList() : null;
-
-    _searchSubscription = GlobalProviderSearchService.searchAllProvidersStream(
-      cleanQuery,
-      selectedProviders: targetIds,
-    ).listen(
-      (section) {
-        if (mounted && section.items.isNotEmpty) {
-          setState(() {
-            _providerResults[section.providerId] = section;
-          });
-        }
-      },
-      onDone: () {
-        if (mounted) {
-          setState(() {
-            _isSearching = false;
-          });
-        }
-      },
-      onError: (err) {
-        if (mounted) {
-          setState(() {
-            _isSearching = false;
-          });
-        }
-      },
+  Future<List<Serie>> _fetchSeries(String baseUrl, String encodedQuery) async {
+    final response = await apiClient.get(
+      Uri.parse(
+        '${baseUrl}search/tv?api_key=$apiKey&query=$encodedQuery',
+      ),
     );
+    if (response.statusCode != 200) {
+      throw Exception('Failed to load serie data');
+    }
+
+    final List<Serie> series = [];
+    final List<dynamic> results = json.decode(response.body)['results'];
+    for (var result in results) {
+      series.add(Serie(
+        name: result['name'],
+        posterPath: result['poster_path'] ?? '',
+        overView: result['overview'] ?? '',
+        id: result['id'],
+        backdropPath: result['backdrop_path'] ?? '',
+        score: result['vote_average'] ?? 0.0,
+      ));
+    }
+    return series;
   }
 
-  void _onTapMediaCard(ProviderSearchItem item, String providerName) {
-    Navigator.push(
-      context,
-      ExpressivePageRoute(
-        page: ProviderMediaDetailPage(
-          title: item.title,
-          posterPath: item.poster,
-          permalink: item.url,
-          providerName: providerName,
-        ),
+  Future<List<Person>> _fetchPeople(String baseUrl, String encodedQuery) async {
+    final response = await apiClient.get(
+      Uri.parse(
+        '${baseUrl}search/person?api_key=$apiKey&query=$encodedQuery',
+      ),
+    );
+    if (response.statusCode != 200) {
+      throw Exception('Failed to load people data');
+    }
+
+    final List<Person> persons = [];
+    final List<dynamic> results = json.decode(response.body)['results'];
+    for (var result in results) {
+      persons.add(Person(
+        name: result['name'],
+        profilePath: result['profile_path'] ?? '',
+        id: result['id'],
+        department: result['known_for_department'] ?? '',
+      ));
+    }
+    return persons;
+  }
+
+  String _getSearchLabelText(int tabIndex) {
+    switch (tabIndex) {
+      case 0:
+        return 'Search for movies...';
+      case 1:
+        return 'Search for TV shows...';
+      case 2:
+        return 'Search for people...';
+      default:
+        return 'Search...';
+    }
+  }
+
+  Widget _buildEmptyState(String message, IconData icon) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            icon,
+            size: 64,
+            color: Colors.white.withValues(alpha: 0.15),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            message,
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.5),
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  void _openProviderGrid(String providerName, List<ProviderSearchItem> items) {
-    if (items.isEmpty) return;
-    Navigator.push(
-      context,
-      ExpressivePageRoute(
-        page: ListGridViewMovies(
-          movieList: items.map((e) => Movie(
-            title: e.title,
-            releaseDate: '',
-            posterPath: e.poster,
-            backdropPath: e.poster,
-            overView: '',
-            id: ProviderConfig.getStableMediaId(e.url),
-            score: 7.5,
-          )).toList(),
-          title: providerName,
-          onTapMovieCard: (movie) {
-            // Re-find the original item to pass to details
-            final originalItem = items.firstWhere(
-              (element) => element.title == movie.title, 
-              orElse: () => items.first
-            );
-            _onTapMediaCard(originalItem, providerName);
-          },
-        ),
+  Widget _buildNoResultsState(String query) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.search_off_rounded,
+            size: 64,
+            color: Colors.white.withValues(alpha: 0.15),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            "No results found for '$query'",
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.5),
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  void _showProviderFilterModal() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (context, setModalState) {
-            return Container(
-              height: MediaQuery.sizeOf(context).height * 0.65,
-              decoration: const BoxDecoration(
-                color: Color(0xFF141414),
-                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-              ),
-              padding: EdgeInsets.only(
-                top: 12,
-                left: 16,
-                right: 16,
-                bottom: MediaQuery.paddingOf(context).bottom + 16,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 36,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: Colors.white24,
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'Search Providers',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      TextButton(
-                        onPressed: () {
-                          setModalState(() {
-                            if (_enabledProviderIds.length == _availableProviders.length) {
-                              _enabledProviderIds.clear();
-                            } else {
-                              _enabledProviderIds = _availableProviders
-                                  .map((p) => p.id.toLowerCase())
-                                  .toSet();
-                            }
-                          });
-                          setState(() {});
-                        },
-                        child: Text(
-                          _enabledProviderIds.length == _availableProviders.length
-                              ? 'Deselect All'
-                              : 'Select All',
-                          style: const TextStyle(color: Color(0xFF3B5DF8), fontWeight: FontWeight.w600),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Expanded(
-                    child: ListView.builder(
-                      physics: const BouncingScrollPhysics(),
-                      itemCount: _availableProviders.length,
-                      itemBuilder: (context, index) {
-                        final p = _availableProviders[index];
-                        final isEnabled = _enabledProviderIds.contains(p.id.toLowerCase());
+  Widget _buildMovieTab() {
+    final query = _searchController.text.trim();
+    if (query.isEmpty) {
+      return _buildEmptyState('Type to search for movies', Icons.movie_outlined);
+    }
+    if (movieResults.isEmpty) {
+      return _buildNoResultsState(query);
+    }
 
-                        return CheckboxListTile(
-                          contentPadding: EdgeInsets.zero,
-                          activeColor: const Color(0xFF3B5DF8),
-                          checkColor: Colors.white,
-                          title: Text(
-                            p.name,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 15,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          subtitle: p.url != null
-                              ? Text(
-                                  p.url!,
-                                  style: const TextStyle(color: Colors.white38, fontSize: 12),
-                                )
-                              : null,
-                          value: isEnabled,
-                          onChanged: (val) {
-                            setModalState(() {
-                              if (val == true) {
-                                _enabledProviderIds.add(p.id.toLowerCase());
-                              } else {
-                                _enabledProviderIds.remove(p.id.toLowerCase());
-                              }
-                            });
-                            setState(() {});
-                          },
-                        );
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        final crossAxisCount = width > 1200
+            ? 5
+            : width > 800
+                ? 4
+                : width > 600
+                    ? 3
+                    : 2;
+
+        return ScrollConfiguration(
+          behavior: const ScrollBehavior().copyWith(
+            physics: const BouncingScrollPhysics(),
+            scrollbars: true,
+            dragDevices: {
+              PointerDeviceKind.touch,
+              PointerDeviceKind.mouse,
+              PointerDeviceKind.trackpad,
+            },
+          ),
+          child: GridView.builder(
+            padding: EdgeInsets.only(
+              left: 12,
+              right: 12,
+              top: 12,
+              bottom: BottomBar.getHeight(context),
+            ),
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: crossAxisCount,
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
+              childAspectRatio: 1.77,
+            ),
+            itemCount: movieResults.length,
+            itemBuilder: (context, index) {
+              final movie = movieResults[index];
+              return TvFocusWrapper(
+                borderRadius: 16.0,
+                onTap: () => onTapMovie(movie.title, movie.id, context),
+                child: MovieSearchResult(
+                  movie: movie,
+                ),
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildTvTab() {
+    final query = _searchController.text.trim();
+    if (query.isEmpty) {
+      return _buildEmptyState('Type to search for TV shows', Icons.tv_outlined);
+    }
+    if (tvResults.isEmpty) {
+      return _buildNoResultsState(query);
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        final crossAxisCount = width > 1200
+            ? 5
+            : width > 800
+                ? 4
+                : width > 600
+                    ? 3
+                    : 2;
+
+        return ScrollConfiguration(
+          behavior: const ScrollBehavior().copyWith(
+            physics: const BouncingScrollPhysics(),
+            scrollbars: true,
+            dragDevices: {
+              PointerDeviceKind.touch,
+              PointerDeviceKind.mouse,
+              PointerDeviceKind.trackpad,
+            },
+          ),
+          child: GridView.builder(
+            padding: EdgeInsets.only(
+              left: 12,
+              right: 12,
+              top: 12,
+              bottom: BottomBar.getHeight(context),
+            ),
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: crossAxisCount,
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
+              childAspectRatio: 1.77,
+            ),
+            itemCount: tvResults.length,
+            itemBuilder: (context, index) {
+              final serie = tvResults[index];
+              return TvFocusWrapper(
+                borderRadius: 16.0,
+                onTap: () => onTapSerie(serie.name, serie.id, context),
+                child: SerieSearchResult(
+                  serie: serie,
+                ),
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildPeopleTab() {
+    final query = _searchController.text.trim();
+    if (query.isEmpty) {
+      return _buildEmptyState('Type to search for people', Icons.people_outline);
+    }
+    if (personResults.isEmpty) {
+      return _buildNoResultsState(query);
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        final crossAxisCount = width > 1200
+            ? 6
+            : width > 800
+                ? 4
+                : width > 600
+                    ? 3
+                    : 2;
+
+        return ScrollConfiguration(
+          behavior: const ScrollBehavior().copyWith(
+            physics: const BouncingScrollPhysics(),
+            scrollbars: true,
+            dragDevices: {
+              PointerDeviceKind.touch,
+              PointerDeviceKind.mouse,
+              PointerDeviceKind.trackpad,
+            },
+          ),
+          child: GridView.builder(
+            padding: EdgeInsets.only(
+              left: 12,
+              right: 12,
+              top: 12,
+              bottom: BottomBar.getHeight(context),
+            ),
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: crossAxisCount,
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
+              childAspectRatio: 0.7,
+            ),
+            itemCount: personResults.length,
+            itemBuilder: (context, index) {
+              final person = personResults[index];
+              return TvFocusWrapper(
+                borderRadius: 16.0,
+                onTap: () => person.department == 'Acting'
+                    ? onTapCast(context, person.id)
+                    : onTapCrew(context, person.id),
+                child: PersonSearchResult(
+                  person: person,
+                ),
+              );
+            },
+          ),
         );
       },
     );
@@ -355,472 +430,178 @@ class _SearchScreenState extends State<SearchScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final isTv = TvFocusModeManager.isTvDevice;
-    final bottomInset = isTv ? 24.0 : BottomBar.getHeight(context) + 16;
-    final query = _searchController.text.trim();
 
     return Scaffold(
-      backgroundColor: Colors.black,
+      extendBody: true,
+      backgroundColor: colorScheme.surface,
       body: SafeArea(
-        bottom: false,
         child: Column(
           children: [
-            const SizedBox(height: 8),
-            // 1. Search Bar Header
-            _buildSearchBarHeader(context),
+            // Hint + visibility depend on tab index; rebuild only this bar, not the grids.
+            ValueListenableBuilder<double>(
+              valueListenable: _tabController.animation!,
+              builder: (context, animationValue, _) {
+                final tabIndex = animationValue.round().clamp(0, 3);
+                if (tabIndex == 3) return const SizedBox.shrink();
 
-            const SizedBox(height: 10),
-            // 2. Category Filter Chips Row
-            _buildCategoryChipsRow(),
-
-            // 3. Search Progress Indicator
-            if (_isSearching)
-              const LinearProgressIndicator(
-                backgroundColor: Colors.transparent,
-                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF3B5DF8)),
-                minHeight: 2,
-              )
-            else
-              const SizedBox(height: 2),
-
-            // 4. Body Content (Search History / Multi-Provider Results)
-            Expanded(
-              child: query.isEmpty
-                  ? _buildSearchHistory()
-                  : _buildMultiProviderResults(bottomInset),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // --- Search Bar Header ---
-  Widget _buildSearchBarHeader(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Container(
-        height: 52,
-        decoration: BoxDecoration(
-          color: const Color(0xFF1A1A1E),
-          borderRadius: BorderRadius.circular(26),
-          border: Border.all(
-            color: Colors.white.withOpacity(0.08),
-            width: 1,
-          ),
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 14),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            // Voice / Mic Icon
-            const Icon(
-              Icons.mic_none_rounded,
-              color: Colors.white70,
-              size: 22,
-            ),
-            const SizedBox(width: 10),
-
-            // Search Icon
-            const Icon(
-              Icons.search_rounded,
-              color: Colors.white54,
-              size: 21,
-            ),
-            const SizedBox(width: 10),
-
-            // Input Field
-            Expanded(
-              child: TextField(
-                controller: _searchController,
-                focusNode: _searchFocusNode,
-                textAlignVertical: TextAlignVertical.center,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w500,
-                  letterSpacing: -0.2,
-                ),
-                cursorColor: const Color(0xFF4C68FF),
-                decoration: const InputDecoration(
-                  filled: false,
-                  fillColor: Colors.transparent,
-                  hintText: 'Search movies, series, anime...',
-                  hintStyle: TextStyle(
-                    color: Colors.white38,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w400,
-                  ),
-                  border: InputBorder.none,
-                  enabledBorder: InputBorder.none,
-                  focusedBorder: InputBorder.none,
-                  disabledBorder: InputBorder.none,
-                  errorBorder: InputBorder.none,
-                  isDense: true,
-                  contentPadding: EdgeInsets.zero,
-                ),
-                textInputAction: TextInputAction.search,
-                onSubmitted: (val) => _executeGlobalSearch(val),
-              ),
-            ),
-
-            // Clear Button
-            if (_searchController.text.isNotEmpty)
-              GestureDetector(
-                onTap: () {
-                  _searchController.clear();
-                },
-                child: Container(
-                  padding: const EdgeInsets.all(6),
-                  color: Colors.transparent,
-                  child: const Icon(
-                    Icons.close_rounded,
-                    color: Colors.white60,
-                    size: 20,
-                  ),
-                ),
-              ),
-
-            // Filter Button
-            GestureDetector(
-              onTap: _showProviderFilterModal,
-              child: Container(
-                padding: const EdgeInsets.all(6),
-                color: Colors.transparent,
-                child: const Icon(
-                  Icons.tune_rounded,
-                  color: Colors.white70,
-                  size: 21,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // --- Category Chips Row ---
-  Widget _buildCategoryChipsRow() {
-    return SizedBox(
-      height: 38,
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        physics: const BouncingScrollPhysics(),
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        itemCount: _categories.length,
-        itemBuilder: (context, index) {
-          final isSelected = _selectedCategoryIndex == index;
-          final title = _categories[index];
-
-          return Padding(
-            padding: const EdgeInsets.only(right: 10),
-            child: InkWell(
-              onTap: () {
-                setState(() {
-                  _selectedCategoryIndex = index;
-                });
-              },
-              borderRadius: BorderRadius.circular(19),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 180),
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                decoration: BoxDecoration(
-                  color: isSelected ? const Color(0xFF4C68FF) : const Color(0xFF1E1E24),
-                  borderRadius: BorderRadius.circular(19),
-                  border: Border.all(
-                    color: isSelected
-                        ? Colors.transparent
-                        : Colors.white.withOpacity(0.06),
-                    width: 1,
-                  ),
-                ),
-                child: Center(
-                  child: Text(
-                    title,
-                    style: TextStyle(
-                      color: isSelected ? Colors.white : Colors.white70,
-                      fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                      fontSize: 13.5,
-                      letterSpacing: -0.2,
+                return Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                  child: Align(
+                    alignment: Alignment.center,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 600),
+                      child: TextField(
+                        focusNode: _searchFocusNode,
+                        autocorrect: false,
+                        style: theme.textTheme.bodyLarge
+                            ?.copyWith(color: colorScheme.onSurface),
+                        cursorColor: colorScheme.primary,
+                        controller: _searchController,
+                        keyboardType: TextInputType.text,
+                        decoration: InputDecoration(
+                          hintText: _getSearchLabelText(tabIndex),
+                          hintStyle: theme.textTheme.bodyMedium?.copyWith(
+                            color: colorScheme.onSurfaceVariant
+                                .withValues(alpha: 0.6),
+                          ),
+                          prefixIcon: Icon(
+                            Icons.search_rounded,
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                          filled: true,
+                          fillColor: colorScheme.surfaceContainerHigh,
+                          focusedBorder: OutlineInputBorder(
+                            borderSide: BorderSide(
+                                color: colorScheme.primary, width: 2),
+                            borderRadius: BorderRadius.circular(28),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderSide: BorderSide(
+                              color: colorScheme.outlineVariant
+                                  .withValues(alpha: 0.2),
+                              width: 1,
+                            ),
+                            borderRadius: BorderRadius.circular(28),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                              vertical: 14, horizontal: 20),
+                          suffixIcon: _searchController.text.isNotEmpty
+                              ? IconButton(
+                                  icon: Icon(Icons.close_rounded,
+                                      color: colorScheme.onSurfaceVariant),
+                                  onPressed: () {
+                                    _searchController.clear();
+                                    _searchFetchId++;
+                                    setState(() {
+                                      movieResults = [];
+                                      tvResults = [];
+                                      personResults = [];
+                                    });
+                                  },
+                                )
+                              : null,
+                        ),
+                      ),
                     ),
                   ),
-                ),
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  // --- Multi-Provider Search Results Body ---
-  Widget _buildMultiProviderResults(double bottomInset) {
-    if (_providerResults.isEmpty && _isSearching) {
-      // Loading skeleton state
-      return ListView.builder(
-        physics: const NeverScrollableScrollPhysics(),
-        padding: EdgeInsets.only(bottom: bottomInset, top: 12),
-        itemCount: 3,
-        itemBuilder: (context, index) {
-          final dummyNames = ['VegaMovies', 'MoviesDrive', 'BollyFlix'];
-          return _buildProviderSection(
-            providerName: dummyNames[index],
-            items: _dummyItems,
-            isLoading: true,
-          );
-        },
-      );
-    }
-
-    if (_providerResults.isEmpty && !_isSearching) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.search_off_rounded, size: 54, color: Colors.white24),
-            const SizedBox(height: 12),
-            const Text(
-              'No results found',
-              style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 6),
-            const Text(
-              'Try searching with a different movie or series name',
-              style: TextStyle(color: Colors.white38, fontSize: 13),
-            ),
-          ],
-        ),
-      );
-    }
-
-    final sections = _providerResults.values.toList();
-
-    return ListView.builder(
-      physics: const BouncingScrollPhysics(),
-      padding: EdgeInsets.only(bottom: bottomInset, top: 8),
-      itemCount: sections.length,
-      itemBuilder: (context, index) {
-        final section = sections[index];
-        return _buildProviderSection(
-          providerName: section.providerName,
-          items: section.items,
-          isLoading: false,
-        );
-      },
-    );
-  }
-
-  // --- Individual Provider Horizontal Section ---
-  Widget _buildProviderSection({
-    required String providerName,
-    required List<ProviderSearchItem> items,
-    bool isLoading = false,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Section Header
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                providerName,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 17,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: -0.3,
-                ),
-              ),
-              IconButton(
-                icon: const Icon(
-                  Icons.arrow_forward_rounded,
-                  color: Colors.white,
-                  size: 20,
-                ),
-                onPressed: () => _openProviderGrid(providerName, items),
-              ),
-            ],
-          ),
-        ),
-
-        // Horizontal Card Carousel with Edge Fade
-        SizedBox(
-          height: 230,
-          child: ShaderMask(
-            shaderCallback: (Rect bounds) {
-              return const LinearGradient(
-                begin: Alignment.centerLeft,
-                end: Alignment.centerRight,
-                colors: [Colors.white, Colors.white, Colors.white, Colors.transparent],
-                stops: [0.0, 0.02, 0.90, 1.0],
-              ).createShader(bounds);
-            },
-            blendMode: BlendMode.dstIn,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              physics: const BouncingScrollPhysics(),
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: items.length,
-              itemBuilder: (context, index) {
-                final item = items[index];
-                return Padding(
-                  padding: const EdgeInsets.only(right: 12),
-                  child: isLoading
-                      ? Skeletonizer(
-                          enabled: true,
-                          child: _buildMovieCard(item, providerName),
-                        )
-                      : TvFocusWrapper(
-                          onTap: () => _onTapMediaCard(item, providerName),
-                          child: _buildMovieCard(item, providerName),
-                        ),
                 );
               },
             ),
-          ),
-        ),
-      ],
-    );
-  }
 
-  // --- Single Movie Card Matching CloudStream Design ---
-  Widget _buildMovieCard(ProviderSearchItem item, String providerName) {
-    return ExpressiveInteractiveContainer(
-      onTap: () => _onTapMediaCard(item, providerName),
-      child: SizedBox(
-        width: 120,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Poster with Rounded Corners & Badge
-            ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: Stack(
-                children: [
-                  Container(
-                    height: 170,
-                    width: 120,
-                    color: const Color(0xFF222222),
-                    child: item.poster.isNotEmpty
-                        ? CachedNetworkImage(
-                            imageUrl: item.poster,
-                            fit: BoxFit.cover,
-                            fadeInDuration: const Duration(milliseconds: 200),
-                            errorWidget: (ctx, _, __) => const Center(
-                              child: Icon(Icons.movie_creation_outlined, color: Colors.white24, size: 32),
-                            ),
-                          )
-                        : const Center(
-                            child: Icon(Icons.movie_creation_outlined, color: Colors.white24, size: 32),
+            // Material 3 Expressive Segmented TabBar
+            LayoutBuilder(
+              builder: (context, constraints) {
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 16),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: colorScheme.surfaceContainerLow,
+                      borderRadius: BorderRadius.circular(28),
+                    ),
+                    padding: const EdgeInsets.all(4),
+                    child: TabBar(
+                      controller: _tabController,
+                      isScrollable: true,
+                      tabAlignment: TabAlignment.start,
+                      labelPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      labelColor: colorScheme.onPrimaryContainer,
+                      unselectedLabelColor: colorScheme.onSurfaceVariant,
+                      dividerColor: Colors.transparent,
+                      indicatorSize: TabBarIndicatorSize.tab,
+                      indicator: BoxDecoration(
+                        borderRadius: BorderRadius.circular(24),
+                        color: colorScheme.primaryContainer,
+                      ),
+                      tabs: const [
+                        Tab(
+                          height: 36,
+                          child: Text(
+                            'Movies',
+                            maxLines: 1,
+                            softWrap: false,
+                            style: TextStyle(fontWeight: FontWeight.bold),
                           ),
-                  ),
-
-                  // Type Badge
-                  Positioned(
-                    top: 6,
-                    right: 6,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.75),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        item.type.toUpperCase(),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
                         ),
-                      ),
+                        Tab(
+                          height: 36,
+                          child: Text(
+                            'TV Shows',
+                            maxLines: 1,
+                            softWrap: false,
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        Tab(
+                          height: 36,
+                          child: Text(
+                            'People',
+                            maxLines: 1,
+                            softWrap: false,
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        Tab(
+                          height: 36,
+                          child: Text(
+                            'Discover',
+                            maxLines: 1,
+                            softWrap: false,
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
+                );
+              },
+            ),
+
+            // Main result content area
+            Expanded(
+              child: TabBarView(
+                controller: _tabController,
+                children: [
+                  _buildMovieTab(),
+                  _buildTvTab(),
+                  _buildPeopleTab(),
+                  DiscoverMoviesPage(),
                 ],
               ),
             ),
-            const SizedBox(height: 6),
-
-            // Movie Title
-            Text(
-              item.title,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                height: 1.2,
-              ),
-            ),
           ],
         ),
       ),
     );
   }
 
-  // --- Search History & Suggestions ---
-  Widget _buildSearchHistory() {
-    if (_searchHistory.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: const [
-            Icon(Icons.search_rounded, size: 54, color: Colors.white12),
-            SizedBox(height: 12),
-            Text(
-              'Search for movies, series, or anime',
-              style: TextStyle(color: Colors.white38, fontSize: 14, fontWeight: FontWeight.w500),
-            ),
-          ],
-        ),
-      );
-    }
 
-    return ListView(
-      physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const Text(
-              'Recent Searches',
-              style: TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.w700),
-            ),
-            TextButton(
-              onPressed: () {
-                setState(() {
-                  _searchHistory.clear();
-                });
-                _saveSearchHistory();
-              },
-              child: const Text('Clear All', style: TextStyle(color: Colors.white38, fontSize: 12)),
-            ),
-          ],
-        ),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: _searchHistory.map((query) {
-            return ActionChip(
-              backgroundColor: const Color(0xFF1E1E1E),
-              label: Text(query, style: const TextStyle(color: Colors.white, fontSize: 13)),
-              avatar: const Icon(Icons.history, color: Colors.white38, size: 16),
-              onPressed: () {
-                _searchController.text = query;
-                _searchController.selection = TextSelection.fromPosition(
-                  TextPosition(offset: query.length),
-                );
-                _executeGlobalSearch(query);
-              },
-            );
-          }).toList(),
-        ),
-      ],
-    );
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _tabController.dispose();
+    _searchController.removeListener(_onSearchChanged);
+    _searchController.dispose();
+    _searchFocusNode.dispose();
+    super.dispose();
   }
 }

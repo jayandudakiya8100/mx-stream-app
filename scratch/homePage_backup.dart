@@ -11,15 +11,18 @@ import 'package:Mirarr/widgets/extensions_screen.dart';
 
 import 'package:Mirarr/database/watch_history_database.dart';
 import 'package:Mirarr/functions/fetchers/fetch_popular_movies.dart';
+import 'package:Mirarr/functions/fetchers/fetch_streaming_providers.dart';
 import 'package:Mirarr/functions/fetchers/fetch_trending_movies.dart';
-import 'package:Mirarr/functions/fetchers/fetch_popular_series.dart';
-import 'package:Mirarr/functions/fetchers/fetch_trending_series.dart';
+import 'package:Mirarr/functions/fetchers/providers/media_provider_service.dart';
+import 'package:Mirarr/functions/fetchers/providers/core/models.dart';
+import 'package:Mirarr/functions/fetchers/providers/provider_manager.dart';
+import 'package:Mirarr/functions/fetchers/providers/provider_config.dart';
 import 'package:Mirarr/functions/get_base_url.dart';
 import 'package:Mirarr/functions/navigation_provider.dart';
 import 'package:Mirarr/functions/regionprovider_class.dart';
 import 'package:Mirarr/homePage/widgets/continue_watching_card.dart';
 import 'package:Mirarr/homePage/widgets/home_content_card.dart';
-
+import 'package:Mirarr/homePage/widgets/provider_media_detail_page.dart';
 import 'package:Mirarr/homePage/widgets/set_watch_status_modal.dart';
 import 'package:Mirarr/models/watch_history_model.dart';
 import 'package:Mirarr/moviesPage/UI/gridview_forlists_movies.dart';
@@ -33,10 +36,11 @@ import 'package:Mirarr/widgets/expressive_interactive_container.dart';
 import 'package:Mirarr/widgets/expressive_page_route.dart';
 import 'package:Mirarr/widgets/tv_focus_wrapper.dart';
 
-class MovieShelfSection {
+class ProviderShelfSection {
   final String title;
-  final List<Movie> items;
-  MovieShelfSection({required this.title, required this.items});
+  final String categoryPath;
+  final List<ProviderSearchItem> items;
+  ProviderShelfSection({required this.title, required this.categoryPath, required this.items});
 }
 
 class HomeScreen extends StatefulWidget {
@@ -57,10 +61,12 @@ class _HomeScreenState extends State<HomeScreen> {
   final PageController _heroPageController = PageController();
   Timer? _heroAutoSlideTimer;
   String _heroWatchStatus = 'None';
-
+  String _selectedProvider = 'VegaMovies';
+  List<MediaProviderItem> _dynamicProviders = MediaProviderService.defaultProviders;
+  final Map<int, ProviderSearchItem> _providerItemMap = {};
   List<ContinueWatchingItem> _continueWatchingList = [];
   List<Movie> _homeMovies = [];
-  List<MovieShelfSection> _shelves = [];
+  List<ProviderShelfSection> _shelves = [];
 
   // Horizontal pagination state
   int _currentHomeShelfPage = 1;
@@ -97,16 +103,80 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    _selectedProvider = MediaProviderService.getSelectedProvider();
     _homeShelfScrollController.addListener(_onHomeShelfScroll);
+    _fetchDynamicProviders();
     _regionProvider = Provider.of<RegionProvider>(context, listen: false);
     _regionProvider.addListener(_onRegionChanged);
     _loadAllData();
   }
 
-  void _onHomeShelfScroll() {}
+  void _onHomeShelfScroll() {
+    if (!_homeShelfScrollController.hasClients || _isLoadingNextPage) return;
+    final maxScroll = _homeShelfScrollController.position.maxScrollExtent;
+    final currentScroll = _homeShelfScrollController.position.pixels;
+    if (maxScroll - currentScroll <= 250) {
+      _loadNextPage();
+    }
+  }
 
-  Future<void> _loadNextPage() async {}
+  Future<void> _loadNextPage() async {
+    if (_isLoadingNextPage || _selectedProvider.toLowerCase() == 'none') return;
+    _isLoadingNextPage = true;
+    final nextPage = _currentHomeShelfPage + 1;
 
+    try {
+      final provider = ProviderManager.getProvider(_selectedProvider);
+      if (provider == null) return;
+      
+      final newItems = await provider.getMainPage(category: 'home', page: nextPage);
+
+      if (newItems.isNotEmpty && mounted) {
+        final existingIds = <int>{
+          ..._homeMovies.map((m) => m.id),
+          ..._heroMovies.map((m) => m.id),
+        };
+
+        final uniqueNewItems = newItems.where((item) => !existingIds.contains(ProviderConfig.getStableMediaId(item.url))).toList();
+
+        for (final item in uniqueNewItems) {
+          _providerItemMap[ProviderConfig.getStableMediaId(item.url)] = item;
+        }
+        
+        final newMovies = uniqueNewItems.map((e) => Movie(
+          title: e.title, releaseDate: '', posterPath: e.poster, backdropPath: e.poster, overView: '', id: ProviderConfig.getStableMediaId(e.url), score: 7.5
+        )).toList();
+
+        setState(() {
+          _currentHomeShelfPage = nextPage;
+          _homeMovies.addAll(newMovies);
+        });
+      }
+    } catch (_) {} finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingNextPage = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _fetchDynamicProviders() async {
+    final enabledProviders = await MediaProviderService.fetchProviders();
+    
+    final List<MediaProviderItem> mappedProviders = [
+      const MediaProviderItem(id: 'none', name: 'None'),
+      const MediaProviderItem(id: 'random', name: 'Random'),
+    ];
+    
+    mappedProviders.addAll(enabledProviders);
+
+    if (mounted) {
+      setState(() {
+        _dynamicProviders = mappedProviders;
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -173,43 +243,83 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _loadShelves() async {
     _currentHomeShelfPage = 1;
-    try {
-      final region = _regionProvider.currentRegion;
-      final trendingMovies = await fetchTrendingMovies(region);
-      final popularMovies = await fetchPopularMovies(region);
-      final trendingSeries = await fetchTrendingSeries(region);
-      final popularSeries = await fetchPopularSeries(region);
-
+    if (_selectedProvider.toLowerCase() == 'none') {
       if (!mounted) return;
+      setState(() {
+        _heroMovie = null;
+        _heroMovies = [];
+        _heroIndex = 0;
+        _homeMovies = [];
+        _shelves = [];
+      });
+      return;
+    }
 
-      List<MovieShelfSection> newShelves = [];
-      if (trendingMovies.isNotEmpty) newShelves.add(MovieShelfSection(title: 'Trending Movies', items: trendingMovies));
-      if (popularMovies.isNotEmpty) newShelves.add(MovieShelfSection(title: 'Popular Movies', items: popularMovies));
-      if (trendingSeries.isNotEmpty) {
-        newShelves.add(MovieShelfSection(title: 'Trending Series', items: trendingSeries.map((s) => Movie(title: s.name, releaseDate: 'SERIES', posterPath: s.posterPath, backdropPath: s.posterPath, overView: s.overView, id: s.id, score: s.score)).toList()));
+    try {
+      debugPrint('[_loadShelves] Selected provider: $_selectedProvider');
+      final provider = ProviderManager.getProvider(_selectedProvider);
+      if (provider == null) {
+        debugPrint('[_loadShelves] Error: Provider "$_selectedProvider" not found in ProviderManager!');
+        return;
       }
-      if (popularSeries.isNotEmpty) {
-        newShelves.add(MovieShelfSection(title: 'Popular Series', items: popularSeries.map((s) => Movie(title: s.name, releaseDate: 'SERIES', posterPath: s.posterPath, backdropPath: s.posterPath, overView: s.overView, id: s.id, score: s.score)).toList()));
+      
+      debugPrint('[_loadShelves] Fetching home items from provider: ${provider.name}');
+      final homeItems = await provider.getMainPage(category: 'home');
+      final netflixItems = await provider.getMainPage(category: 'netflix');
+      final primeItems = await provider.getMainPage(category: 'prime');
+      final hotstarItems = await provider.getMainPage(category: 'hotstar');
+      final animeItems = await provider.getMainPage(category: 'anime');
+      
+      if (!mounted) return;
+      
+      _providerItemMap.clear();
+      final allItems = [...homeItems, ...netflixItems, ...primeItems, ...hotstarItems, ...animeItems];
+      for (final item in allItems) {
+        _providerItemMap[ProviderConfig.getStableMediaId(item.url)] = item;
       }
 
-      final heroList = trendingMovies;
-      Movie? hero = heroList.isNotEmpty ? heroList.first : null;
+      List<ProviderShelfSection> newShelves = [];
+      if (homeItems.isNotEmpty) {
+        newShelves.add(ProviderShelfSection(title: 'Latest Updates', categoryPath: 'home', items: homeItems));
+      }
+      if (netflixItems.isNotEmpty) {
+        newShelves.add(ProviderShelfSection(title: 'Netflix', categoryPath: 'netflix', items: netflixItems));
+      }
+      if (primeItems.isNotEmpty) {
+        newShelves.add(ProviderShelfSection(title: 'Amazon Prime', categoryPath: 'prime', items: primeItems));
+      }
+      if (hotstarItems.isNotEmpty) {
+        newShelves.add(ProviderShelfSection(title: 'Disney+ Hotstar', categoryPath: 'hotstar', items: hotstarItems));
+      }
+      if (animeItems.isNotEmpty) {
+        newShelves.add(ProviderShelfSection(title: 'Anime Series', categoryPath: 'anime', items: animeItems));
+      }
+
+      final heroList = homeItems.take(5).map((e) => Movie(
+        title: e.title, releaseDate: '', posterPath: e.poster, backdropPath: e.poster, overView: '', id: ProviderConfig.getStableMediaId(e.url), score: 7.5
+      )).toList();
+      
+      final homeList = homeItems.map((e) => Movie(
+        title: e.title, releaseDate: '', posterPath: e.poster, backdropPath: e.poster, overView: '', id: ProviderConfig.getStableMediaId(e.url), score: 7.5
+      )).toList();
+
+      Movie? hero = heroList.isNotEmpty ? heroList.first : (homeList.isNotEmpty ? homeList.first : null);
       String heroStatus = 'None';
-      if (hero != null) heroStatus = WatchStatusManager.getStatus(hero.id);
+      if (hero != null) {
+        heroStatus = WatchStatusManager.getStatus(hero.id);
+      }
 
       setState(() {
         _heroMovie = hero;
-        _heroMovies = heroList;
+        _heroMovies = heroList.isNotEmpty ? heroList : homeList.take(6).toList();
         _heroIndex = 0;
         _heroWatchStatus = heroStatus;
-        _homeMovies = trendingMovies;
+        _homeMovies = homeList;
         _shelves = newShelves;
       });
 
       _startHeroAutoSlide();
-    } catch (e) {
-      debugPrint('Error loading home shelves: $e');
-    }
+    } catch (_) {}
   }
 
   void _startHeroAutoSlide() {
@@ -232,10 +342,21 @@ class _HomeScreenState extends State<HomeScreen> {
           : _heroMovie;
 
   void _onTapMovieCard(Movie movie) {
-    if (movie.releaseDate == 'SERIES') {
-       onTapSerie(movie.title, movie.id, context);
+    final providerItem = _providerItemMap[movie.id];
+    if (providerItem != null) {
+      Navigator.push(
+        context,
+        ExpressivePageRoute(
+          page: ProviderMediaDetailPage(
+            title: providerItem.title,
+            posterPath: providerItem.poster,
+            permalink: providerItem.url,
+            providerName: _selectedProvider,
+          ),
+        ),
+      );
     } else {
-       onTapMovie(movie.title, movie.id, context);
+      onTapMovie(movie.title, movie.id, context);
     }
   }
 
@@ -254,6 +375,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _onHeroStatusTap([Movie? targetMovie]) async {
     final movie = targetMovie ?? _currentHeroMovie;
     if (movie == null) return;
+    final providerItem = _providerItemMap[movie.id];
     final currentStatus = WatchStatusManager.getStatus(movie.id);
     final newStatus = await SetWatchStatusModal.show(
       context,
@@ -261,8 +383,8 @@ class _HomeScreenState extends State<HomeScreen> {
       title: movie.title,
       posterPath: movie.posterPath,
       initialStatus: currentStatus,
-      permalink: null,
-      providerName: null,
+      permalink: providerItem?.url,
+      providerName: _selectedProvider,
     );
     if (newStatus != null && mounted) {
       setState(() {
@@ -285,9 +407,212 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  void _showHomeFilterBottomSheet() {}
+  void _showHomeFilterBottomSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black54,
+      elevation: 0,
+      clipBehavior: Clip.antiAlias,
+      isScrollControlled: true,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Container(
+              height: MediaQuery.sizeOf(context).height * 0.70,
+              decoration: const BoxDecoration(
+                color: Color(0xFF141414),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              padding: EdgeInsets.only(
+                top: 12,
+                left: 16,
+                right: 16,
+                bottom: MediaQuery.paddingOf(context).bottom + 16,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
 
-  Widget _buildEmptyProviderState(BuildContext context) { return const SizedBox(); }
+                  // Manage Extensions Button
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8.0),
+                    child: InkWell(
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const ExtensionsScreen(
+                              repoUrl: 'https://raw.githubusercontent.com/SaurabhKaperwan/CSX/builds/CS.json',
+                            ),
+                          ),
+                        ).then((_) {
+                          _fetchDynamicProviders();
+                        });
+                      },
+                      borderRadius: BorderRadius.circular(10),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Row(
+                          children: [
+                            Icon(Icons.extension_rounded, color: Colors.white, size: 20),
+                            SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                'Manage Extensions (Cloudstream)',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 15.5,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                            Icon(Icons.arrow_forward_ios_rounded, color: Colors.white54, size: 16),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                    child: Text(
+                      'ACTIVE PROVIDER', 
+                      style: TextStyle(color: Colors.white54, fontSize: 13, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+
+                  // Provider List
+                  Expanded(
+                    child: ListView.builder(
+                      physics: const BouncingScrollPhysics(),
+                      itemCount: _dynamicProviders.length,
+                      itemBuilder: (context, index) {
+                        final provider = _dynamicProviders[index];
+                        final isSelected =
+                            _selectedProvider.toLowerCase() == provider.name.toLowerCase();
+
+                        return InkWell(
+                          onTap: () {
+                            setState(() {
+                              _selectedProvider = provider.name;
+                            });
+                            setModalState(() {});
+                            MediaProviderService.setSelectedProvider(provider.name);
+                            Navigator.pop(ctx);
+                            _loadAllData();
+                          },
+                          borderRadius: BorderRadius.circular(10),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+                            child: Row(
+                              children: [
+                                // Checkmark on left
+                                SizedBox(
+                                  width: 24,
+                                  child: isSelected
+                                      ? const Icon(
+                                          Icons.check_rounded,
+                                          color: Colors.white,
+                                          size: 20,
+                                        )
+                                      : null,
+                                ),
+                                const SizedBox(width: 12),
+
+                                // Provider name
+                                Text(
+                                  provider.name,
+                                  style: TextStyle(
+                                    color: isSelected ? Colors.white : Colors.white70,
+                                    fontSize: 15.5,
+                                    fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildEmptyProviderState(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 36.0),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.05),
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white12),
+              ),
+              child: const Icon(
+                Icons.extension_off_rounded,
+                color: Colors.white38,
+                size: 40,
+              ),
+            ),
+            const SizedBox(height: 24),
+            const Text(
+              'No Provider Selected',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.3,
+              ),
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              'Select an active media provider using the button below to browse content from streaming catalogs.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.white54,
+                fontSize: 14,
+                height: 1.45,
+              ),
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              onPressed: _showHomeFilterBottomSheet,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.white,
+                foregroundColor: Colors.black,
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              icon: const Icon(CupertinoIcons.line_horizontal_3_decrease, size: 18),
+              label: const Text(
+                'Select Provider',
+                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -298,7 +623,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final double bottomInset = isTv
         ? 16.0
         : (bottomPadding > 0 ? bottomPadding : 88.0);
-    final isNone = false;
+    final isNone = _selectedProvider.toLowerCase() == 'none';
 
     return Container(
       color: Colors.black,
@@ -306,7 +631,9 @@ class _HomeScreenState extends State<HomeScreen> {
         children: [
           Scaffold(
             backgroundColor: Colors.transparent,
-            body: RefreshIndicator(
+            body: isNone
+                ? _buildEmptyProviderState(context)
+                : RefreshIndicator(
                     onRefresh: _loadAllData,
                     color: colorScheme.primary,
                     backgroundColor: colorScheme.surfaceContainerHigh,
@@ -352,7 +679,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 onTapMovieCard: (movie) => _onTapMovieCard(movie),
                                 movies: i == 0
                                     ? _homeMovies
-                                    : _shelves[i].items,
+                                    : _shelves[i].items.map((e) => Movie(title: e.title, releaseDate: '', posterPath: e.poster, backdropPath: e.poster, overView: '', id: ProviderConfig.getStableMediaId(e.url), score: 7.5)).toList(),
                                 scrollController:
                                     i == 0 ? _homeShelfScrollController : null,
                                 isLoadingNext:
@@ -361,7 +688,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                   _shelves[i].title,
                                   i == 0
                                       ? _homeMovies
-                                      : _shelves[i].items,
+                                      : _shelves[i].items.map((e) => Movie(title: e.title, releaseDate: '', posterPath: e.poster, backdropPath: e.poster, overView: '', id: ProviderConfig.getStableMediaId(e.url), score: 7.5)).toList(),
                                 ),
                               ),
                             ),
@@ -379,6 +706,55 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
           ),
 
+          // Floating Action Button (FAB)
+          Positioned(
+            right: 20,
+            bottom: bottomInset + 12,
+            child: TvFocusWrapper(
+              onTap: _showHomeFilterBottomSheet,
+              borderRadius: 24,
+              child: Container(
+                height: 48,
+                padding: EdgeInsets.symmetric(horizontal: isNone ? 14 : 16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF141414),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.15),
+                    width: 1,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.5),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      CupertinoIcons.line_horizontal_3_decrease,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                    if (!isNone) ...[
+                      const SizedBox(width: 8),
+                      Text(
+                        _selectedProvider,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );

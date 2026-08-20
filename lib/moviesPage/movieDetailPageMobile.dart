@@ -159,26 +159,7 @@ class _MovieDetailPageMobileState extends State<_MovieDetailPageMobile> {
                         spacing: 8,
                         runSpacing: 6,
                         children: [
-                          // Provider Badge Pill
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: colorScheme.surfaceContainerHigh,
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                color: colorScheme.outlineVariant.withValues(alpha: 0.3),
-                                width: 1,
-                              ),
-                            ),
-                            child: Text(
-                              'VegaMovies',
-                              style: TextStyle(
-                                color: colorScheme.onSurface,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ),
+                          // Removed Provider Badge Pill
                           Text(
                             'Movie',
                             style: TextStyle(

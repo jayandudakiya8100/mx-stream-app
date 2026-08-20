@@ -21,7 +21,7 @@ import 'package:Mirarr/seriesPage/models/serie.dart';
 import 'package:Mirarr/moviesPage/UI/customMovieWidget.dart';
 import 'package:Mirarr/seriesPage/UI/customSeriesWidget.dart';
 import 'package:Mirarr/homePage/widgets/set_watch_status_modal.dart';
-import 'package:Mirarr/homePage/widgets/provider_media_detail_page.dart';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:Mirarr/functions/get_base_url.dart';
 import 'package:Mirarr/functions/regionprovider_class.dart';
@@ -240,44 +240,7 @@ class _ShelfPageState extends State<ShelfPage> {
   }
 
   void _navigateToDetail(ShelfItem item) {
-    if (item.permalink != null && item.permalink!.isNotEmpty) {
-      Navigator.push(
-        context,
-        ExpressivePageRoute(
-          page: ProviderMediaDetailPage(
-            title: item.title,
-            posterPath: item.posterPath ?? '',
-            permalink: item.permalink!,
-            providerName: item.providerName ?? 'VegaMovies',
-          ),
-        ),
-      ).then((_) => _loadShelfItems());
-    } else if (item.providerName != null && item.providerName!.isNotEmpty && item.providerName != 'TMDB') {
-      Navigator.push(
-        context,
-        ExpressivePageRoute(
-          page: ProviderMediaDetailPage(
-            title: item.title,
-            posterPath: item.posterPath ?? '',
-            permalink: item.permalink ?? '',
-            providerName: item.providerName ?? 'VegaMovies',
-          ),
-        ),
-      ).then((_) => _loadShelfItems());
-    } else if (item.tmdbId > 10000000) {
-      // Provider hash ID fallback
-      Navigator.push(
-        context,
-        ExpressivePageRoute(
-          page: ProviderMediaDetailPage(
-            title: item.title,
-            posterPath: item.posterPath ?? '',
-            permalink: item.permalink ?? '',
-            providerName: item.providerName ?? 'VegaMovies',
-          ),
-        ),
-      ).then((_) => _loadShelfItems());
-    } else if (item.type == 'movie') {
+    if (item.type == 'movie') {
       Navigator.push(
         context,
         ExpressivePageRoute(
