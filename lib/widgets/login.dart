@@ -1,14 +1,14 @@
 import 'dart:convert';
 
-import 'package:Mirarr/functions/show_error_dialog.dart';
-import 'package:Mirarr/widgets/settings_screen.dart';
-import 'package:Mirarr/widgets/expressive_page_route.dart';
+import 'package:mxstream/functions/show_error_dialog.dart';
+import 'package:mxstream/widgets/settings_screen.dart';
+import 'package:mxstream/widgets/expressive_page_route.dart';
 import 'package:flutter/material.dart';
-import 'package:Mirarr/widgets/bottom_bar.dart';
-import 'package:Mirarr/widgets/tv_focus_wrapper.dart';
+import 'package:mxstream/widgets/bottom_bar.dart';
+import 'package:mxstream/widgets/tv_focus_wrapper.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:tmdb_api/tmdb_api.dart';
-import 'package:Mirarr/services/api_client.dart';
+import 'package:mxstream/services/api_client.dart';
 
 import 'package:hive/hive.dart';
 import 'package:url_launcher/url_launcher_string.dart';

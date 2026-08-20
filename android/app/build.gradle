@@ -41,7 +41,7 @@ android {
     }
 
     defaultConfig {
-        applicationId "com.mirarrapp.Mirarr"
+        applicationId "com.mxstream.app"
         minSdkVersion flutter.minSdkVersion
         targetSdkVersion flutter.targetSdkVersion
         versionCode flutterVersionCode.toInteger()

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher_string.dart';
-import 'package:Mirarr/moviesPage/functions/f2m_parser.dart';
-import 'package:Mirarr/seriesPage/checkers/custom_tmdb_ids_effects_series.dart';
-import 'package:Mirarr/widgets/expressive_interactive_container.dart';
+import 'package:mxstream/moviesPage/functions/f2m_parser.dart';
+import 'package:mxstream/seriesPage/checkers/custom_tmdb_ids_effects_series.dart';
+import 'package:mxstream/widgets/expressive_interactive_container.dart';
 
 class IranSeriesF2MPage extends StatefulWidget {
   final int serieId;

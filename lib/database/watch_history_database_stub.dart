@@ -1,4 +1,4 @@
-import 'package:Mirarr/models/watch_history_model.dart';
+import 'package:mxstream/models/watch_history_model.dart';
 
 class WatchHistoryDatabase {
   Future<int> insertWatchHistoryItem(WatchHistoryItem item) => throw UnimplementedError();

@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:Mirarr/widgets/tv_focus_wrapper.dart';
+import 'package:mxstream/widgets/tv_focus_wrapper.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:skeletonizer/skeletonizer.dart';
-import 'package:Mirarr/widgets/cast/cast-details.dart';
-import 'package:Mirarr/widgets/cast/crew-details.dart';
+import 'package:mxstream/widgets/cast/cast-details.dart';
+import 'package:mxstream/widgets/cast/crew-details.dart';
 import 'package:provider/provider.dart';
-import 'package:Mirarr/functions/regionprovider_class.dart';
-import 'package:Mirarr/functions/get_base_url.dart';
+import 'package:mxstream/functions/regionprovider_class.dart';
+import 'package:mxstream/functions/get_base_url.dart';
 
 void onTapCast(BuildContext context, int castId) {
   Navigator.push(

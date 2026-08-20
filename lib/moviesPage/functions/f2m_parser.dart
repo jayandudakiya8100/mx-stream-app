@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:html/dom.dart';
 import 'package:html/parser.dart' as html_parser;
-import 'package:Mirarr/services/api_client.dart';
+import 'package:mxstream/services/api_client.dart';
 
 class F2MLink {
   final String label;

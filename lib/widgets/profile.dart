@@ -1,31 +1,31 @@
 import 'dart:convert';
 import 'dart:ui';
 
-import 'package:Mirarr/functions/fetchers/fetch_serie_details.dart';
-import 'package:Mirarr/functions/get_base_url.dart';
-import 'package:Mirarr/functions/regionprovider_class.dart';
-import 'package:Mirarr/moviesPage/functions/on_tap_gridview_movie.dart';
-import 'package:Mirarr/seriesPage/function/on_tap_gridview_serie.dart';
-import 'package:Mirarr/widgets/rss_screen.dart';
-import 'package:Mirarr/widgets/settings_screen.dart';
-import 'package:Mirarr/widgets/watchlist_calendar_screen.dart';
-import 'package:Mirarr/utils/expressive_motion.dart';
-import 'package:Mirarr/widgets/expressive_interactive_container.dart';
-import 'package:Mirarr/widgets/expressive_page_route.dart';
+import 'package:mxstream/functions/fetchers/fetch_serie_details.dart';
+import 'package:mxstream/functions/get_base_url.dart';
+import 'package:mxstream/functions/regionprovider_class.dart';
+import 'package:mxstream/moviesPage/functions/on_tap_gridview_movie.dart';
+import 'package:mxstream/seriesPage/function/on_tap_gridview_serie.dart';
+import 'package:mxstream/widgets/rss_screen.dart';
+import 'package:mxstream/widgets/settings_screen.dart';
+import 'package:mxstream/widgets/watchlist_calendar_screen.dart';
+import 'package:mxstream/utils/expressive_motion.dart';
+import 'package:mxstream/widgets/expressive_interactive_container.dart';
+import 'package:mxstream/widgets/expressive_page_route.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:hive/hive.dart';
-import 'package:Mirarr/moviesPage/UI/customMovieWidget.dart';
-import 'package:Mirarr/seriesPage/UI/customSeriesWidget.dart';
-import 'package:Mirarr/seriesPage/models/serie.dart';
-import 'package:Mirarr/services/api_client.dart';
-import 'package:Mirarr/moviesPage/models/movie.dart';
+import 'package:mxstream/moviesPage/UI/customMovieWidget.dart';
+import 'package:mxstream/seriesPage/UI/customSeriesWidget.dart';
+import 'package:mxstream/seriesPage/models/serie.dart';
+import 'package:mxstream/services/api_client.dart';
+import 'package:mxstream/moviesPage/models/movie.dart';
 import 'package:provider/provider.dart';
-import 'package:Mirarr/moviesPage/movieDetailPage.dart';
-import 'package:Mirarr/seriesPage/serieDetailPage.dart';
-import 'package:Mirarr/functions/navigation_provider.dart';
-import 'package:Mirarr/widgets/bottom_bar.dart';
-import 'package:Mirarr/widgets/tv_focus_wrapper.dart';
+import 'package:mxstream/moviesPage/movieDetailPage.dart';
+import 'package:mxstream/seriesPage/serieDetailPage.dart';
+import 'package:mxstream/functions/navigation_provider.dart';
+import 'package:mxstream/widgets/bottom_bar.dart';
+import 'package:mxstream/widgets/tv_focus_wrapper.dart';
 
 
 class ProfilePage extends StatefulWidget {

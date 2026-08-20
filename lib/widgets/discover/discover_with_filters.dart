@@ -1,17 +1,17 @@
 import 'dart:async';
 import 'dart:ui';
 
-import 'package:Mirarr/functions/get_base_url.dart';
-import 'package:Mirarr/functions/regionprovider_class.dart';
-import 'package:Mirarr/moviesPage/UI/customMovieWidget.dart';
-import 'package:Mirarr/moviesPage/functions/on_tap_movie.dart';
-import 'package:Mirarr/moviesPage/models/movie.dart';
-import 'package:Mirarr/widgets/discover/genre_chips.dart';
-import 'package:Mirarr/widgets/tv_focus_wrapper.dart';
+import 'package:mxstream/functions/get_base_url.dart';
+import 'package:mxstream/functions/regionprovider_class.dart';
+import 'package:mxstream/moviesPage/UI/customMovieWidget.dart';
+import 'package:mxstream/moviesPage/functions/on_tap_movie.dart';
+import 'package:mxstream/moviesPage/models/movie.dart';
+import 'package:mxstream/widgets/discover/genre_chips.dart';
+import 'package:mxstream/widgets/tv_focus_wrapper.dart';
 import 'package:flutter/material.dart';
-import 'package:Mirarr/widgets/bottom_bar.dart';
+import 'package:mxstream/widgets/bottom_bar.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:Mirarr/services/api_client.dart';
+import 'package:mxstream/services/api_client.dart';
 import 'dart:convert';
 
 import 'package:provider/provider.dart';

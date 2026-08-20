@@ -1,8 +1,8 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:Mirarr/services/api_client.dart';
-import 'package:Mirarr/widgets/bottom_bar.dart';
-import 'package:Mirarr/widgets/tv_focus_wrapper.dart';
+import 'package:mxstream/services/api_client.dart';
+import 'package:mxstream/widgets/bottom_bar.dart';
+import 'package:mxstream/widgets/tv_focus_wrapper.dart';
 import 'package:url_launcher/url_launcher_string.dart';
 import 'package:webfeed_plus/domain/rss_category.dart';
 import 'package:webfeed_plus/domain/rss_feed.dart';

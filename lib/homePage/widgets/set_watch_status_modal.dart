@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-import 'package:Mirarr/database/watch_history_database.dart';
-import 'package:Mirarr/functions/fetchers/providers/provider_config.dart';
-import 'package:Mirarr/models/watch_history_model.dart';
+import 'package:mxstream/database/watch_history_database.dart';
+import 'package:mxstream/functions/fetchers/providers/provider_config.dart';
+import 'package:mxstream/models/watch_history_model.dart';
 
 class WatchStatusManager {
   static const String boxName = 'sessionBox';

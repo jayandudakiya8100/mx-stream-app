@@ -12,7 +12,7 @@ class ShareContent {
   }
 
   static void shareMirarrWebMovie(int movieId) {
-    final url = 'https://mirarr-app.github.io/mirarr/#/movie/$movieId';
+    final url = 'https://mxstream.vercel.app/#/movie/$movieId';
     Share.share(url);
   }
 
@@ -22,7 +22,7 @@ class ShareContent {
   }
 
   static void shareMirarrWebTVShow(int serieId) {
-    final url = 'https://mirarr-app.github.io/mirarr/#/tv/$serieId';
+    final url = 'https://mxstream.vercel.app/#/tv/$serieId';
     Share.share(url);
   }
 

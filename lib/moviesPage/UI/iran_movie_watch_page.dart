@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher_string.dart';
-import 'package:Mirarr/moviesPage/checkers/custom_tmdb_ids_effects.dart';
-import 'package:Mirarr/moviesPage/functions/f2m_parser.dart';
-import 'package:Mirarr/moviesPage/functions/watch_links.dart';
-import 'package:Mirarr/widgets/expressive_interactive_container.dart';
-import 'package:Mirarr/widgets/m3_expressive_spinner.dart';
+import 'package:mxstream/moviesPage/checkers/custom_tmdb_ids_effects.dart';
+import 'package:mxstream/moviesPage/functions/f2m_parser.dart';
+import 'package:mxstream/moviesPage/functions/watch_links.dart';
+import 'package:mxstream/widgets/expressive_interactive_container.dart';
+import 'package:mxstream/widgets/m3_expressive_spinner.dart';
 
 class IranMovieWatchPage extends StatefulWidget {
   final int movieId;

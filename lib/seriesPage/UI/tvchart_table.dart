@@ -2,11 +2,11 @@ import 'dart:convert';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:Mirarr/services/api_client.dart';
+import 'package:mxstream/services/api_client.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:Mirarr/functions/get_imdb_score.dart';
-import 'package:Mirarr/functions/get_base_url.dart';
-import 'package:Mirarr/functions/regionprovider_class.dart';
+import 'package:mxstream/functions/get_imdb_score.dart';
+import 'package:mxstream/functions/get_base_url.dart';
+import 'package:mxstream/functions/regionprovider_class.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 

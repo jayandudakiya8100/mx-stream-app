@@ -4,8 +4,8 @@ import 'package:device_info_plus/device_info_plus.dart';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:Mirarr/utils/expressive_motion.dart';
-import 'package:Mirarr/widgets/expressive_interactive_container.dart';
+import 'package:mxstream/utils/expressive_motion.dart';
+import 'package:mxstream/widgets/expressive_interactive_container.dart';
 
 class TvFocusModeManager {
   // Start with no rings, assuming the app is on mobile (false)

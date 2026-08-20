@@ -2,20 +2,20 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:hive/hive.dart';
-import 'package:Mirarr/services/api_client.dart';
+import 'package:mxstream/services/api_client.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
-import 'package:Mirarr/functions/fetchers/fetch_serie_details.dart';
-import 'package:Mirarr/functions/get_base_url.dart';
-import 'package:Mirarr/functions/regionprovider_class.dart';
-import 'package:Mirarr/seriesPage/models/serie.dart';
-import 'package:Mirarr/seriesPage/serieDetailPage.dart';
-import 'package:Mirarr/widgets/bottom_bar.dart';
-import 'package:Mirarr/widgets/m3_expressive_spinner.dart';
-import 'package:Mirarr/widgets/tv_focus_wrapper.dart';
-import 'package:Mirarr/widgets/expressive_page_route.dart';
+import 'package:mxstream/functions/fetchers/fetch_serie_details.dart';
+import 'package:mxstream/functions/get_base_url.dart';
+import 'package:mxstream/functions/regionprovider_class.dart';
+import 'package:mxstream/seriesPage/models/serie.dart';
+import 'package:mxstream/seriesPage/serieDetailPage.dart';
+import 'package:mxstream/widgets/bottom_bar.dart';
+import 'package:mxstream/widgets/m3_expressive_spinner.dart';
+import 'package:mxstream/widgets/tv_focus_wrapper.dart';
+import 'package:mxstream/widgets/expressive_page_route.dart';
 
 class WatchlistCalendarScreen extends StatefulWidget {
   const WatchlistCalendarScreen({Key? key}) : super(key: key);

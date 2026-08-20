@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:Mirarr/functions/fetchers/providers/core/models.dart';
+import 'package:mxstream/functions/fetchers/providers/core/models.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class TempPlayerSheet {

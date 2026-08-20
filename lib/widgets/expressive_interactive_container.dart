@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:Mirarr/utils/expressive_motion.dart';
+import 'package:mxstream/utils/expressive_motion.dart';
 
 /// Reusable Material 3 Expressive Interactive Container (`ExpressiveTouch`).
 /// Ultra-high performance (120 FPS lock-tight) tactile press scale-down,

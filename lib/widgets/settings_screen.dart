@@ -1,11 +1,11 @@
-import 'package:Mirarr/functions/navigation_provider.dart';
-import 'package:Mirarr/functions/regionprovider_class.dart';
-import 'package:Mirarr/functions/themeprovider_class.dart';
+import 'package:mxstream/functions/navigation_provider.dart';
+import 'package:mxstream/functions/regionprovider_class.dart';
+import 'package:mxstream/functions/themeprovider_class.dart';
 
 
-import 'package:Mirarr/functions/platform_helper.dart';
-import 'package:Mirarr/widgets/custom_divider.dart';
-import 'package:Mirarr/widgets/m3_expressive_spinner.dart';
+import 'package:mxstream/functions/platform_helper.dart';
+import 'package:mxstream/widgets/custom_divider.dart';
+import 'package:mxstream/widgets/m3_expressive_spinner.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -14,15 +14,15 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 
 
-import 'package:Mirarr/functions/get_base_url.dart';
+import 'package:mxstream/functions/get_base_url.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:Mirarr/services/api_client.dart';
+import 'package:mxstream/services/api_client.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
-import 'package:Mirarr/functions/file_saver.dart' as fs;
-import 'package:Mirarr/widgets/extensions_screen.dart';
+import 'package:mxstream/functions/file_saver.dart' as fs;
+import 'package:mxstream/widgets/extensions_screen.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({Key? key}) : super(key: key);

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:provider/provider.dart';
-import 'package:Mirarr/functions/regionprovider_class.dart';
-import 'package:Mirarr/functions/get_base_url.dart';
-import 'package:Mirarr/widgets/m3_expressive_spinner.dart';
+import 'package:mxstream/functions/regionprovider_class.dart';
+import 'package:mxstream/functions/get_base_url.dart';
+import 'package:mxstream/widgets/m3_expressive_spinner.dart';
 
 class ImageGalleryPage extends StatelessWidget {
   final List<String> imageUrls;

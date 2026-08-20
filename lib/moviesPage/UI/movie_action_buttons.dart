@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
-import 'package:Mirarr/widgets/m3_expressive_rating_bar.dart';
-import 'package:Mirarr/database/watch_history_database.dart';
-import 'package:Mirarr/moviesPage/functions/movie_tmdb_actions.dart';
-import 'package:Mirarr/widgets/profile.dart';
-import 'package:Mirarr/widgets/tv_focus_wrapper.dart';
-import 'package:Mirarr/widgets/expressive_interactive_container.dart';
-import 'package:Mirarr/utils/expressive_motion.dart';
-import 'package:Mirarr/widgets/custom_divider.dart';
+import 'package:mxstream/widgets/m3_expressive_rating_bar.dart';
+import 'package:mxstream/database/watch_history_database.dart';
+import 'package:mxstream/moviesPage/functions/movie_tmdb_actions.dart';
+import 'package:mxstream/widgets/profile.dart';
+import 'package:mxstream/widgets/tv_focus_wrapper.dart';
+import 'package:mxstream/widgets/expressive_interactive_container.dart';
+import 'package:mxstream/utils/expressive_motion.dart';
+import 'package:mxstream/widgets/custom_divider.dart';
 
 Widget buildM3FloatingActionButton({
   required BuildContext context,

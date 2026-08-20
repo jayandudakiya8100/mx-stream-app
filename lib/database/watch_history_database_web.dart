@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:Mirarr/models/watch_history_model.dart';
+import 'package:mxstream/models/watch_history_model.dart';
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:hive_flutter/hive_flutter.dart';
 

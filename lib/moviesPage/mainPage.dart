@@ -1,21 +1,21 @@
 import 'dart:ui';
-import 'package:Mirarr/functions/fetchers/fetch_movies_by_genre.dart';
-import 'package:Mirarr/functions/fetchers/fetch_popular_movies.dart';
-import 'package:Mirarr/functions/fetchers/fetch_trending_movies.dart';
-import 'package:Mirarr/functions/regionprovider_class.dart';
-import 'package:Mirarr/moviesPage/functions/on_tap_gridview_movie.dart';
-import 'package:Mirarr/moviesPage/functions/on_tap_movie.dart';
-import 'package:Mirarr/widgets/tv_focus_wrapper.dart';
-import 'package:Mirarr/widgets/bottom_bar.dart';
-import 'package:Mirarr/utils/expressive_motion.dart';
-import 'package:Mirarr/widgets/expressive_interactive_container.dart';
+import 'package:mxstream/functions/fetchers/fetch_movies_by_genre.dart';
+import 'package:mxstream/functions/fetchers/fetch_popular_movies.dart';
+import 'package:mxstream/functions/fetchers/fetch_trending_movies.dart';
+import 'package:mxstream/functions/regionprovider_class.dart';
+import 'package:mxstream/moviesPage/functions/on_tap_gridview_movie.dart';
+import 'package:mxstream/moviesPage/functions/on_tap_movie.dart';
+import 'package:mxstream/widgets/tv_focus_wrapper.dart';
+import 'package:mxstream/widgets/bottom_bar.dart';
+import 'package:mxstream/utils/expressive_motion.dart';
+import 'package:mxstream/widgets/expressive_interactive_container.dart';
 import 'package:flutter/material.dart';
 
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:Mirarr/moviesPage/UI/customMovieWidget.dart';
-import 'package:Mirarr/moviesPage/models/movie.dart';
+import 'package:mxstream/moviesPage/UI/customMovieWidget.dart';
+import 'package:mxstream/moviesPage/models/movie.dart';
 import 'dart:async';
-import 'package:Mirarr/database/watch_history_database.dart';
+import 'package:mxstream/database/watch_history_database.dart';
 import 'package:provider/provider.dart';
 import 'package:skeletonizer/skeletonizer.dart';
 

@@ -5,7 +5,7 @@ import 'dart:isolate';
 import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:sqlite3/sqlite3.dart';
-import 'package:Mirarr/models/watch_history_model.dart';
+import 'package:mxstream/models/watch_history_model.dart';
 
 const String _databaseName = 'watch_history.db';
 const String _tableName = 'watch_history';

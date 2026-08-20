@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:Mirarr/player/temp_player_sheet.dart';
-import 'package:Mirarr/widgets/bottom_bar.dart';
-import 'package:Mirarr/widgets/tv_focus_wrapper.dart';
+import 'package:mxstream/player/temp_player_sheet.dart';
+import 'package:mxstream/widgets/bottom_bar.dart';
+import 'package:mxstream/widgets/tv_focus_wrapper.dart';
 
 class DownloadsPage extends StatefulWidget {
   const DownloadsPage({super.key});

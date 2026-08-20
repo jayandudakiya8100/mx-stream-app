@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:Mirarr/utils/expressive_motion.dart';
-import 'package:Mirarr/widgets/expressive_interactive_container.dart';
+import 'package:mxstream/utils/expressive_motion.dart';
+import 'package:mxstream/widgets/expressive_interactive_container.dart';
 
 /// Material 3 Expressive Rating Bar Widget.
 /// Features interactive drag/tap gestures, haptic feedback on step changes,

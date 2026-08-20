@@ -1,4 +1,4 @@
-import 'package:Mirarr/functions/themeprovider_class.dart';
+import 'package:mxstream/functions/themeprovider_class.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 

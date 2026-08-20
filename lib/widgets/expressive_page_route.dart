@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:Mirarr/utils/expressive_motion.dart';
+import 'package:mxstream/utils/expressive_motion.dart';
 
 /// Custom Material 3 Expressive Page Transition Route.
 /// Fast, lock-tight 120 FPS page transition utilizing Spatial Spring scale morphing

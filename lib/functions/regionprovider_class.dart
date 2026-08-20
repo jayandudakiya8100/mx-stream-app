@@ -1,5 +1,5 @@
-import 'package:Mirarr/moviesPage/functions/check_availability.dart';
-import 'package:Mirarr/seriesPage/function/seasons_api_cache.dart';
+import 'package:mxstream/moviesPage/functions/check_availability.dart';
+import 'package:mxstream/seriesPage/function/seasons_api_cache.dart';
 import 'package:flutter/material.dart';
 
 import 'package:shared_preferences/shared_preferences.dart';

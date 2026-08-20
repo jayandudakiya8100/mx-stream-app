@@ -1,5 +1,5 @@
-name: Mirarr
-description: An open source movie app.
+name: mxstream
+description: The ultimate streaming experience by MXStream.
 publish_to: "none" # Remove this line if you wish to publish to pub.dev
 
 version: 3.3.2

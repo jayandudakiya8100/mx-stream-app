@@ -2,8 +2,8 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:skeletonizer/skeletonizer.dart';
-import 'package:Mirarr/functions/fetchers/providers/provider_config.dart';
-import 'package:Mirarr/functions/fetchers/providers/media_provider_service.dart';
+import 'package:mxstream/functions/fetchers/providers/provider_config.dart';
+import 'package:mxstream/functions/fetchers/providers/media_provider_service.dart';
 
 class ExtensionPlugin {
   final String name;

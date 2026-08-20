@@ -1,5 +1,5 @@
-import 'package:Mirarr/seriesPage/UI/gridview_forlists_series.dart';
-import 'package:Mirarr/widgets/expressive_page_route.dart';
+import 'package:mxstream/seriesPage/UI/gridview_forlists_series.dart';
+import 'package:mxstream/widgets/expressive_page_route.dart';
 import 'package:flutter/material.dart';
 
 void onTapGridSerie(List serieList, BuildContext context) {

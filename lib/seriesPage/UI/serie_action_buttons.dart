@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
-import 'package:Mirarr/widgets/m3_expressive_rating_bar.dart';
-import 'package:Mirarr/seriesPage/function/series_tmdb_actions.dart';
-import 'package:Mirarr/widgets/profile.dart';
-import 'package:Mirarr/moviesPage/UI/movie_action_buttons.dart';
-import 'package:Mirarr/widgets/expressive_interactive_container.dart';
-import 'package:Mirarr/utils/expressive_motion.dart';
-import 'package:Mirarr/widgets/custom_divider.dart';
+import 'package:mxstream/widgets/m3_expressive_rating_bar.dart';
+import 'package:mxstream/seriesPage/function/series_tmdb_actions.dart';
+import 'package:mxstream/widgets/profile.dart';
+import 'package:mxstream/moviesPage/UI/movie_action_buttons.dart';
+import 'package:mxstream/widgets/expressive_interactive_container.dart';
+import 'package:mxstream/utils/expressive_motion.dart';
+import 'package:mxstream/widgets/custom_divider.dart';
 
 class SerieWatchlistButton extends StatefulWidget {
   final int serieId;

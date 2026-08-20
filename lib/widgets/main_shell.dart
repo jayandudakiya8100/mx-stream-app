@@ -1,12 +1,12 @@
-import 'package:Mirarr/functions/navigation_provider.dart';
-import 'package:Mirarr/homePage/homePage.dart';
-import 'package:Mirarr/widgets/bottom_bar.dart';
-import 'package:Mirarr/widgets/downloads_page.dart';
-import 'package:Mirarr/widgets/lazy_indexed_stack.dart';
-import 'package:Mirarr/widgets/search_screen.dart';
-import 'package:Mirarr/widgets/settings_screen.dart';
-import 'package:Mirarr/widgets/shelf_page.dart';
-import 'package:Mirarr/widgets/tv_focus_wrapper.dart';
+import 'package:mxstream/functions/navigation_provider.dart';
+import 'package:mxstream/homePage/homePage.dart';
+import 'package:mxstream/widgets/bottom_bar.dart';
+import 'package:mxstream/widgets/downloads_page.dart';
+import 'package:mxstream/widgets/lazy_indexed_stack.dart';
+import 'package:mxstream/widgets/search_screen.dart';
+import 'package:mxstream/widgets/settings_screen.dart';
+import 'package:mxstream/widgets/shelf_page.dart';
+import 'package:mxstream/widgets/tv_focus_wrapper.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 

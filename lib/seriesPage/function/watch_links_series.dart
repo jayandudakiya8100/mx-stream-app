@@ -1,13 +1,13 @@
-import 'package:Mirarr/functions/regionprovider_class.dart';
-import 'package:Mirarr/functions/show_error_dialog.dart';
-import 'package:Mirarr/seriesPage/checkers/custom_tmdb_ids_effects_series.dart';
-import 'package:Mirarr/widgets/custom_divider.dart';
+import 'package:mxstream/functions/regionprovider_class.dart';
+import 'package:mxstream/functions/show_error_dialog.dart';
+import 'package:mxstream/seriesPage/checkers/custom_tmdb_ids_effects_series.dart';
+import 'package:mxstream/widgets/custom_divider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher_string.dart';
-import 'package:Mirarr/services/api_client.dart';
+import 'package:mxstream/services/api_client.dart';
 import 'dart:convert';
 import 'dart:developer';
 

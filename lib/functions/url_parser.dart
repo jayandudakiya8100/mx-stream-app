@@ -1,10 +1,10 @@
 
-import 'package:Mirarr/functions/fetchers/fetch_movie_details.dart';
-import 'package:Mirarr/functions/fetchers/fetch_serie_details.dart';
-import 'package:Mirarr/functions/regionprovider_class.dart';
+import 'package:mxstream/functions/fetchers/fetch_movie_details.dart';
+import 'package:mxstream/functions/fetchers/fetch_serie_details.dart';
+import 'package:mxstream/functions/regionprovider_class.dart';
 import 'package:flutter/material.dart';
-import 'package:Mirarr/moviesPage/functions/on_tap_movie.dart';
-import 'package:Mirarr/seriesPage/function/on_tap_serie.dart';
+import 'package:mxstream/moviesPage/functions/on_tap_movie.dart';
+import 'package:mxstream/seriesPage/function/on_tap_serie.dart';
 import 'package:provider/provider.dart';
 
 class TMDBUrlParser {

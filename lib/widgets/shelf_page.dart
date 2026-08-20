@@ -1,32 +1,32 @@
 import 'dart:async';
-import 'package:Mirarr/functions/platform_helper.dart';
+import 'package:mxstream/functions/platform_helper.dart';
 import 'dart:ui';
 import 'dart:convert';
-import 'package:Mirarr/services/api_client.dart';
+import 'package:mxstream/services/api_client.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:hive/hive.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
-import 'package:Mirarr/moviesPage/movieDetailPage.dart';
-import 'package:Mirarr/seriesPage/serieDetailPage.dart';
+import 'package:mxstream/moviesPage/movieDetailPage.dart';
+import 'package:mxstream/seriesPage/serieDetailPage.dart';
 import 'package:flutter/material.dart';
-import 'package:Mirarr/widgets/m3_expressive_spinner.dart';
-import 'package:Mirarr/widgets/tv_focus_wrapper.dart';
-import 'package:Mirarr/widgets/bottom_bar.dart';
-import 'package:Mirarr/widgets/expressive_page_route.dart';
-import 'package:Mirarr/database/watch_history_database.dart';
-import 'package:Mirarr/models/watch_history_model.dart';
-import 'package:Mirarr/moviesPage/models/movie.dart';
-import 'package:Mirarr/seriesPage/models/serie.dart';
-import 'package:Mirarr/moviesPage/UI/customMovieWidget.dart';
-import 'package:Mirarr/seriesPage/UI/customSeriesWidget.dart';
-import 'package:Mirarr/homePage/widgets/set_watch_status_modal.dart';
+import 'package:mxstream/widgets/m3_expressive_spinner.dart';
+import 'package:mxstream/widgets/tv_focus_wrapper.dart';
+import 'package:mxstream/widgets/bottom_bar.dart';
+import 'package:mxstream/widgets/expressive_page_route.dart';
+import 'package:mxstream/database/watch_history_database.dart';
+import 'package:mxstream/models/watch_history_model.dart';
+import 'package:mxstream/moviesPage/models/movie.dart';
+import 'package:mxstream/seriesPage/models/serie.dart';
+import 'package:mxstream/moviesPage/UI/customMovieWidget.dart';
+import 'package:mxstream/seriesPage/UI/customSeriesWidget.dart';
+import 'package:mxstream/homePage/widgets/set_watch_status_modal.dart';
 
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:Mirarr/functions/get_base_url.dart';
-import 'package:Mirarr/functions/regionprovider_class.dart';
+import 'package:mxstream/functions/get_base_url.dart';
+import 'package:mxstream/functions/regionprovider_class.dart';
 import 'package:provider/provider.dart';
-import 'package:Mirarr/functions/navigation_provider.dart';
+import 'package:mxstream/functions/navigation_provider.dart';
 import 'package:intl/intl.dart';
 
 class ShelfItem {

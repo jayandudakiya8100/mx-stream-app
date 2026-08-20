@@ -1,7 +1,7 @@
-import 'package:Mirarr/functions/get_base_url.dart';
-import 'package:Mirarr/functions/regionprovider_class.dart';
+import 'package:mxstream/functions/get_base_url.dart';
+import 'package:mxstream/functions/regionprovider_class.dart';
 import 'package:flutter/material.dart';
-import 'package:Mirarr/seriesPage/models/serie.dart';
+import 'package:mxstream/seriesPage/models/serie.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:provider/provider.dart';
 

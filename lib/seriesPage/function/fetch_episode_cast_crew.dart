@@ -1,9 +1,9 @@
 import 'dart:convert';
 
-import 'package:Mirarr/functions/get_base_url.dart';
+import 'package:mxstream/functions/get_base_url.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:Mirarr/services/api_client.dart';
+import 'package:mxstream/services/api_client.dart';
 
 final apiKey = dotenv.env['TMDB_API_KEY'];
 

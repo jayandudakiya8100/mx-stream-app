@@ -1,18 +1,18 @@
 import 'dart:convert';
 import 'dart:async';
 import 'dart:ui';
-import 'package:Mirarr/functions/get_base_url.dart';
-import 'package:Mirarr/functions/regionprovider_class.dart';
-import 'package:Mirarr/moviesPage/functions/on_tap_movie.dart';
+import 'package:mxstream/functions/get_base_url.dart';
+import 'package:mxstream/functions/regionprovider_class.dart';
+import 'package:mxstream/moviesPage/functions/on_tap_movie.dart';
 import 'package:flutter/material.dart';
-import 'package:Mirarr/services/api_client.dart';
+import 'package:mxstream/services/api_client.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:Mirarr/widgets/custom_divider.dart';
-import 'package:Mirarr/widgets/image_gallery_page.dart';
-import 'package:Mirarr/widgets/m3_expressive_spinner.dart';
-import 'package:Mirarr/widgets/expressive_page_route.dart';
-import 'package:Mirarr/widgets/tv_focus_wrapper.dart';
+import 'package:mxstream/widgets/custom_divider.dart';
+import 'package:mxstream/widgets/image_gallery_page.dart';
+import 'package:mxstream/widgets/m3_expressive_spinner.dart';
+import 'package:mxstream/widgets/expressive_page_route.dart';
+import 'package:mxstream/widgets/tv_focus_wrapper.dart';
 import 'package:provider/provider.dart';
 
 class CastDetailPage extends StatefulWidget {

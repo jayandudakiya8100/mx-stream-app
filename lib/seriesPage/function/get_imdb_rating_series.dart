@@ -1,8 +1,8 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:Mirarr/services/api_client.dart';
-import 'package:Mirarr/functions/get_imdb_score.dart';
+import 'package:mxstream/services/api_client.dart';
+import 'package:mxstream/functions/get_imdb_score.dart';
 
 final apiOmdbKey = dotenv.env['OMDB_API_KEY_FOR_SERIES'];
 Future<void> getSerieRatings(String? imdbId, Function(String) updateImdbRating,

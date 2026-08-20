@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'package:Mirarr/services/api_client.dart';
+import 'package:mxstream/services/api_client.dart';
 
 /// Gets the IMDb score for a given IMDb ID via the single-ID endpoint.
 /// Returns the rating (averageRating) as a double, or `null` if not found/error.
