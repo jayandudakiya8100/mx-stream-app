@@ -46,9 +46,71 @@ class ExtensionPlugin {
   }
 }
 
+class ExtensionsRepoScreen extends StatelessWidget {
+  const ExtensionsRepoScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: const Text(
+          'Extensions',
+          style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800),
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.search_rounded, color: Colors.white, size: 22),
+            onPressed: () {},
+          ),
+        ],
+      ),
+      body: ListView(
+        padding: const EdgeInsets.only(top: 8),
+        children: [
+          ListTile(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const ExtensionsScreen(
+                    repoUrl: ProviderConfig.defaultRepoUrl,
+                    repoName: 'Megix Repo(Hindi & English)',
+                  ),
+                ),
+              );
+            },
+            leading: const CircleAvatar(
+              backgroundColor: Colors.white12,
+              child: Icon(Icons.extension, color: Colors.white70),
+            ),
+            title: const Text(
+              'Megix Repo(Hindi & English)',
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 16),
+            ),
+            subtitle: const Text(
+              'https://raw.githubusercontent.com/SaurabhKaperw...',
+              style: TextStyle(color: Colors.white54, fontSize: 12),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class ExtensionsScreen extends StatefulWidget {
   final String? repoUrl;
-  const ExtensionsScreen({super.key, this.repoUrl});
+  final String? repoName;
+  const ExtensionsScreen({super.key, this.repoUrl, this.repoName});
 
   @override
   State<ExtensionsScreen> createState() => _ExtensionsScreenState();
@@ -59,7 +121,7 @@ class _ExtensionsScreenState extends State<ExtensionsScreen> {
   static const String _pluginsUrl = ProviderConfig.pluginsEndpoint;
 
   bool _isLoading = true;
-  String _repoName = 'Megix Repo(Hindi & English)';
+  late String _repoName;
   late String _repoUrl;
   List<ExtensionPlugin> _plugins = [];
   String _selectedCategory = 'All';
@@ -70,6 +132,7 @@ class _ExtensionsScreenState extends State<ExtensionsScreen> {
   void initState() {
     super.initState();
     _repoUrl = widget.repoUrl ?? _defaultRepoUrl;
+    _repoName = widget.repoName ?? 'Megix Repo(Hindi & English)';
     _loadExtensions();
   }
 
@@ -81,9 +144,16 @@ class _ExtensionsScreenState extends State<ExtensionsScreen> {
       if (res.statusCode == 200) {
         final List<dynamic> data = json.decode(res.body);
         final disabled = MediaProviderService.getDisabledProviders();
+        debugPrint('[Extensions] Fetched ${data.length} providers from $_pluginsUrl');
+        debugPrint('[Extensions] Raw extension data: ${res.body}');
+        
         final list = data.map((e) {
           final plugin = ExtensionPlugin.fromJson(e);
           plugin.isDownloaded = !disabled.contains(plugin.internalName);
+          
+          debugPrint('[Extensions] Installing provider: ${plugin.name} (v${plugin.version}) - Internal: ${plugin.internalName}');
+          debugPrint('[Extensions] Types: ${plugin.tvTypes}, Size: ${plugin.fileSize}KB');
+          
           MediaProviderService.installProvider(plugin.internalName, plugin.name, plugin.url);
           return plugin;
         }).toList();
@@ -186,6 +256,7 @@ class _ExtensionsScreenState extends State<ExtensionsScreen> {
         
         // Ensure all fallback plugins are installed
         for (final p in _plugins) {
+          debugPrint('[Extensions] Fallback installing provider: ${p.name} (v${p.version})');
           MediaProviderService.installProvider(p.internalName, p.name, p.url);
         }
         
@@ -263,24 +334,14 @@ class _ExtensionsScreenState extends State<ExtensionsScreen> {
           icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
-          'Extensions',
-          style: TextStyle(
+        title: Text(
+          _repoName,
+          style: const TextStyle(
             color: Colors.white,
             fontSize: 20,
             fontWeight: FontWeight.w800,
           ),
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.search_rounded, color: Colors.white, size: 22),
-            onPressed: () {},
-          ),
-          IconButton(
-            icon: const Icon(Icons.language_rounded, color: Colors.white, size: 22),
-            onPressed: () {},
-          ),
-        ],
       ),
       body: Stack(
         children: [
@@ -289,117 +350,6 @@ class _ExtensionsScreenState extends State<ExtensionsScreen> {
             child: CustomScrollView(
               physics: const BouncingScrollPhysics(),
               slivers: [
-              // Category Filter Chips
-              SliverToBoxAdapter(
-                child: SizedBox(
-                  height: 48,
-                  child: ListView.builder(
-                    scrollDirection: Axis.horizontal,
-                    physics: const BouncingScrollPhysics(),
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    itemCount: _categories.length,
-                    itemBuilder: (context, index) {
-                      final cat = _categories[index];
-                      final isSelected = _selectedCategory == cat;
-
-                      return Padding(
-                        padding: const EdgeInsets.only(right: 8),
-                        child: ChoiceChip(
-                          label: Text(
-                            cat,
-                            style: TextStyle(
-                              color: isSelected ? Colors.black : Colors.white70,
-                              fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500,
-                              fontSize: 13,
-                            ),
-                          ),
-                          selected: isSelected,
-                          selectedColor: Colors.white,
-                          backgroundColor: const Color(0xFF1A1A1A),
-                          showCheckmark: false,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(20),
-                            side: BorderSide(
-                              color: isSelected ? Colors.white : Colors.white12,
-                            ),
-                          ),
-                          onSelected: (selected) {
-                            if (selected) {
-                              setState(() => _selectedCategory = cat);
-                            }
-                          },
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ),
-
-              const SliverToBoxAdapter(child: SizedBox(height: 12)),
-
-              // Repository Card
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                  child: Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF141414),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.white12),
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 42,
-                          height: 42,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: Colors.purple.withValues(alpha: 0.2),
-                            border: Border.all(color: Colors.purple.withValues(alpha: 0.5)),
-                          ),
-                          child: const Icon(Icons.extension_rounded, color: Colors.purpleAccent, size: 22),
-                        ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                _repoName,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                              const SizedBox(height: 3),
-                              Text(
-                                _repoUrl,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  color: Colors.white38,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.delete_outline_rounded, color: Colors.white60, size: 22),
-                          onPressed: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Cannot remove preinstalled default repository.')),
-                            );
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-
               const SliverToBoxAdapter(child: SizedBox(height: 16)),
 
               // Extensions Plugins List
@@ -511,72 +461,13 @@ class _ExtensionsScreenState extends State<ExtensionsScreen> {
                 ),
               ),
 
-              // Bottom padding for FAB & status bar
+              // Bottom padding for status bar
               const SliverToBoxAdapter(
-                child: SizedBox(height: 120),
+                child: SizedBox(height: 30),
               ),
             ],
           ),
         ),
-
-          // Bottom Bar & FAB
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: Container(
-              padding: EdgeInsets.only(
-                left: 16,
-                right: 16,
-                top: 12,
-                bottom: MediaQuery.paddingOf(context).bottom + 12,
-              ),
-              decoration: const BoxDecoration(
-                color: Color(0xFF101010),
-                border: Border(top: BorderSide(color: Colors.white10)),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Extensions',
-                            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Downloaded: $downloadedCount  |  Not downloaded: ${totalCount - downloadedCount}',
-                            style: const TextStyle(color: Colors.white54, fontSize: 12),
-                          ),
-                        ],
-                      ),
-                      ElevatedButton.icon(
-                        onPressed: _showAddRepositoryDialog,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF1E1E1E),
-                          foregroundColor: Colors.white,
-                          side: const BorderSide(color: Colors.white24),
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
-                        icon: const Icon(Icons.add_rounded, size: 18),
-                        label: const Text(
-                          'Add repository',
-                          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
         ],
       ),
     );

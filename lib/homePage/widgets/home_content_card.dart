@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:skeletonizer/skeletonizer.dart';
 import 'package:mxstream/functions/get_base_url.dart';
 import 'package:mxstream/functions/regionprovider_class.dart';
 import 'package:mxstream/moviesPage/models/movie.dart';
@@ -57,19 +58,23 @@ class HomeContentCard extends StatelessWidget {
                       ),
                       errorWidget: (context, url, error) => Container(
                         color: colorScheme.surfaceContainerHigh,
-                        child: Icon(
-                          Icons.movie_outlined,
-                          size: 36,
-                          color: colorScheme.onSurfaceVariant,
+                        child: Skeleton.replace(
+                          child: Icon(
+                            Icons.movie_outlined,
+                            size: 36,
+                            color: colorScheme.onSurfaceVariant,
+                          ),
                         ),
                       ),
                     )
                   : Container(
                       color: colorScheme.surfaceContainerHigh,
-                      child: Icon(
-                        Icons.movie_outlined,
-                        size: 36,
-                        color: colorScheme.onSurfaceVariant,
+                      child: Skeleton.replace(
+                        child: Icon(
+                          Icons.movie_outlined,
+                          size: 36,
+                          color: colorScheme.onSurfaceVariant,
+                        ),
                       ),
                     ),
             ),

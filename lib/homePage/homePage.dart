@@ -6,8 +6,15 @@ import 'package:flutter/services.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:skeletonizer/skeletonizer.dart';
 import 'package:mxstream/widgets/extensions_screen.dart';
+import 'package:mxstream/functions/fetchers/providers/VegaMovies/vega_movies_provider.dart';
+import 'package:mxstream/functions/fetchers/fetch_movie_details.dart';
+import 'package:mxstream/functions/fetchers/fetch_serie_details.dart';
+import 'package:mxstream/functions/fetchers/providers/provider_metadata_mapper.dart';
 
 import 'package:mxstream/database/watch_history_database.dart';
 import 'package:mxstream/functions/fetchers/fetch_popular_movies.dart';
@@ -137,6 +144,8 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+
+
   Future<void> _loadWatchHistory() async {
     try {
       final history = await _watchHistoryDb.getAllWatchHistory();
@@ -175,24 +184,50 @@ class _HomeScreenState extends State<HomeScreen> {
     _currentHomeShelfPage = 1;
     try {
       final region = _regionProvider.currentRegion;
-      final trendingMovies = await fetchTrendingMovies(region);
-      final popularMovies = await fetchPopularMovies(region);
-      final trendingSeries = await fetchTrendingSeries(region);
-      final popularSeries = await fetchPopularSeries(region);
+      final vegaMovies = VegaMoviesProviderImpl();
+
+      // Start VegaMovies requests
+      final vegaCategories = [
+        {'id': 'home', 'title': 'Latest Releases'},
+        {'id': 'netflix', 'title': 'Netflix Originals'},
+        {'id': 'prime', 'title': 'Amazon Prime Video'},
+        {'id': 'hotstar', 'title': 'Disney+ Hotstar'},
+        {'id': 'anime', 'title': 'Anime Hub'},
+      ];
+
+      final vegaFutures = vegaCategories.map((cat) async {
+        try {
+          final results = await vegaMovies.getMainPage(category: cat['id']!);
+          if (results.isEmpty) return null;
+          
+          // Limit to 15 items per shelf to prevent TMDB API rate limiting
+          final enrichFutures = results.take(15).map((item) => ProviderMetadataMapper.enrichProviderItem(item, region));
+          final enrichedItems = await Future.wait(enrichFutures);
+          
+          final movies = enrichedItems.map((e) => e.movie).toList();
+          return MovieShelfSection(title: cat['title']!, items: movies);
+        } catch (e) {
+          debugPrint('Error fetching VegaMovies category ${cat['id']}: $e');
+          return null;
+        }
+      }).toList();
+
+      // Wait for all concurrent requests
+      final vegaShelvesResults = await Future.wait(vegaFutures);
 
       if (!mounted) return;
 
       List<MovieShelfSection> newShelves = [];
-      if (trendingMovies.isNotEmpty) newShelves.add(MovieShelfSection(title: 'Trending Movies', items: trendingMovies));
-      if (popularMovies.isNotEmpty) newShelves.add(MovieShelfSection(title: 'Popular Movies', items: popularMovies));
-      if (trendingSeries.isNotEmpty) {
-        newShelves.add(MovieShelfSection(title: 'Trending Series', items: trendingSeries.map((s) => Movie(title: s.name, releaseDate: 'SERIES', posterPath: s.posterPath, backdropPath: s.posterPath, overView: s.overView, id: s.id, score: s.score)).toList()));
-      }
-      if (popularSeries.isNotEmpty) {
-        newShelves.add(MovieShelfSection(title: 'Popular Series', items: popularSeries.map((s) => Movie(title: s.name, releaseDate: 'SERIES', posterPath: s.posterPath, backdropPath: s.posterPath, overView: s.overView, id: s.id, score: s.score)).toList()));
+
+      // 1. Prepend VegaMovies Shelves
+      for (var shelf in vegaShelvesResults) {
+        if (shelf != null && shelf.items.isNotEmpty) {
+          newShelves.add(shelf);
+        }
       }
 
-      final heroList = trendingMovies;
+      // The top shelf becomes the hero list
+      final heroList = newShelves.isNotEmpty ? newShelves.first.items : <Movie>[];
       Movie? hero = heroList.isNotEmpty ? heroList.first : null;
       String heroStatus = 'None';
       if (hero != null) heroStatus = WatchStatusManager.getStatus(hero.id);
@@ -202,7 +237,7 @@ class _HomeScreenState extends State<HomeScreen> {
         _heroMovies = heroList;
         _heroIndex = 0;
         _heroWatchStatus = heroStatus;
-        _homeMovies = trendingMovies;
+        _homeMovies = heroList; // First shelf is used for pagination if needed
         _shelves = newShelves;
       });
 

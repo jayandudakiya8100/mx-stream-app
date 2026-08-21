@@ -23,6 +23,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
 import 'package:mxstream/functions/file_saver.dart' as fs;
 import 'package:mxstream/widgets/extensions_screen.dart';
+import 'package:mxstream/widgets/new_extensions_screen.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({Key? key}) : super(key: key);
@@ -110,7 +111,7 @@ class _SettingsPageState extends State<SettingsPage> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => const ExtensionsScreen(),
+                          builder: (context) => const NewExtensionsRepoScreen(),
                         ),
                       );
                     },
